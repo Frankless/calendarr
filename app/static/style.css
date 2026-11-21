@@ -633,7 +633,8 @@ a.mini { text-decoration: none; }
 .deck-tabs button { border: 0; background: none; color: var(--muted); font-weight: 600; font-size: var(--fs-sm); padding: 8px 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
 .deck-tabs button.active { background: var(--raised); color: var(--text); }
 .deck-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 32px; }
-.deck { position: relative; width: min(380px, 88vw, calc((100dvh - 420px) * .66)); min-width: 200px; aspect-ratio: 2 / 3; }
+.deck { position: relative; width: clamp(220px, calc((100dvh - 360px) * .66), 520px); max-width: 88vw; aspect-ratio: 2 / 3; }
+.round { flex: none; }
 .swipe-card {
   position: absolute; inset: 0; border-radius: var(--r-panel); overflow: hidden; background: var(--surface);
   box-shadow: 0 0 0 1px var(--line), 0 16px 40px rgba(0,0,0,.28);
@@ -676,11 +677,11 @@ a.mini { text-decoration: none; }
 .round:hover { background: var(--raised); }
 .round:active { transform: scale(.94); }
 .round:disabled { opacity: .4; pointer-events: none; }
-.round.no { color: var(--danger); }
-.round.yes { color: var(--accent-ink); border-color: transparent; background: var(--accent); }
-.round.yes:hover { background: var(--accent-hover); }
-.round.seen { color: var(--text-2); }
-.round.later { color: var(--accent-text); }
+.round.sw-no { color: var(--danger); }
+.round.sw-yes { color: var(--accent-ink); border-color: transparent; background: var(--accent); }
+.round.sw-yes:hover { background: var(--accent-hover); }
+.round.sw-seen { color: var(--text-2); }
+.round.sw-later { color: var(--accent-text); }
 .deck-help { margin: 0; color: var(--muted); font-size: var(--fs-sm); text-align: center; max-width: 420px; }
 .match-pop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(20, 17, 14, .6); backdrop-filter: blur(4px); }
 .match-pop > div { text-align: center; padding: 32px 40px; border-radius: var(--r-panel); background: var(--surface); box-shadow: 0 0 0 1px var(--line-strong), 0 24px 64px rgba(0,0,0,.4); animation: pop .35s var(--ease); }
@@ -694,7 +695,7 @@ a.mini { text-decoration: none; }
   #view-surprise .page-head p, .deck-help { display: none; }
   .deck-tabs { margin-bottom: 16px; }
   .deck-tabs button { padding: 8px 12px; }
-  .deck { width: min(88vw, calc((100dvh - 390px) * .66)); }
+  .deck { width: clamp(220px, calc((100dvh - 270px) * .66), 88vw); }
   .sc-info { padding: 48px 16px 16px; }
   .sc-info h2 { font-size: var(--fs-lg); }
   .round { width: 56px; height: 56px; }
