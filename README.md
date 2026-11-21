@@ -44,6 +44,8 @@ empty. "Autre main" (Another hand) deals new cards, the × on a card ("Pas cette
 sets it aside for the week, and "C'est bon pour la semaine" (Good for this week) confirms what was placed.
 Until then, everything stays an idea.
 
+![Compose the week](docs/composer.png)
+
 Series have three states, set in the "Séries" page: "On la regarde" (watching: its next episodes can be
 scheduled), "Plus tard" (later: never scheduled, with an optional reminder in 1, 3 or 6 months or on a
 date) and "Pas pour nous" (not for us: hidden everywhere). Each series also has an audience (parents,
@@ -81,7 +83,7 @@ needed.
 | Image | Use |
 |---|---|
 | `ghcr.io/frankless/calendarr:latest` | The latest stable version, the one to use. |
-| `ghcr.io/frankless/calendarr:0.1` | Stay on the 0.1 series. |
+| `ghcr.io/frankless/calendarr:0.2` | Stay on the 0.2 series. |
 | `ghcr.io/frankless/calendarr:edge` | The very latest change, to test before a release. |
 
 What's new in each version is on the [Releases](https://github.com/Frankless/calendarr/releases) page.

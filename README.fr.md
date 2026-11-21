@@ -42,6 +42,8 @@ durée) s'estompent. Une case peut rester vide. « Autre main » redistribue, le
 semaine ») l'écarte pour la semaine, et « C'est bon pour la semaine » confirme ce qui a été posé.
 Jusque-là, tout reste une idée.
 
+![Composer la semaine](docs/composer.png)
+
 Les séries ont trois états, réglés dans la page « Séries » : « On la regarde » (ses prochains épisodes
 peuvent être programmés), « Plus tard » (jamais programmée, avec un rappel facultatif dans 1, 3 ou 6 mois
 ou à une date) et « Pas pour nous » (cachée partout). Chaque série a aussi son public (parents, enfants,
@@ -79,7 +81,7 @@ besoin de terminal.
 | Image | Usage |
 |---|---|
 | `ghcr.io/frankless/calendarr:latest` | La dernière version stable, celle à utiliser. |
-| `ghcr.io/frankless/calendarr:0.1` | Rester sur la série 0.1. |
+| `ghcr.io/frankless/calendarr:0.2` | Rester sur la série 0.2. |
 | `ghcr.io/frankless/calendarr:edge` | La toute dernière modification, pour tester avant une version. |
 
 Les nouveautés de chaque version sont sur la page [Releases](https://github.com/Frankless/calendarr/releases).
