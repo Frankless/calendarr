@@ -7,7 +7,11 @@ les films, Sonarr pour les séries) et ce que vous avez déjà vu (Jellyfin), pu
 de la semaine. Il tient compte de l'heure à laquelle la soirée peut commencer et de l'âge des enfants, et
 le programme s'ajoute à votre calendrier iCloud.
 
-![Ce soir](docs/ce-soir.png)
+| Sombre | Clair |
+|---|---|
+| ![Ce soir, thème sombre](docs/ce-soir.png) | ![Ce soir, thème clair](docs/ce-soir-clair.png) |
+
+L'app suit le réglage clair ou sombre de l'appareil.
 
 ## Ce que fait Calendarr
 
@@ -35,7 +39,7 @@ quand vous dites oui tous les deux, le film est programmé.
 semaines. Le programme s'ajoute aussi à l'iPhone, au Mac, à Google Agenda ou à Outlook, avec un rappel
 15 minutes avant, et se met à jour tout seul.
 
-L'interface reprend le style des apps *arr et de Seerr : thème sombre, accent indigo, menu latéral.
+L'interface est sobre : fond anthracite chaud (ou crème en mode clair), une seule couleur d'accent, l'heure de chaque programme en colonne.
 
 | Surprends-moi | Sur téléphone |
 |---|---|
