@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Calendarr</title>
+  <meta name="theme-color" content="#111827">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-week" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/></symbol>
+    <symbol id="i-surprise" viewBox="0 0 24 24"><path d="M10 3.5l1.6 4.4L16 9.5l-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z"/><path d="M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+    <symbol id="i-upcoming" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3L19.5 9M19.5 4.5V9H15"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9"/></symbol>
+  </svg>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="logo" href="#week">
+        <img src="/static/icon.svg" alt="" width="36" height="36">
+        <span>Calendarr</span>
+      </a>
+      <nav class="side-nav">
+        <button data-view="week" class="active"><svg><use href="#i-week"/></svg>Semaine</button>
+        <button data-view="surprise"><svg><use href="#i-surprise"/></svg>Surprends-moi</button>
+        <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
+        <button data-view="settings"><svg><use href="#i-settings"/></svg>Réglages</button>
+      </nav>
+      <div class="side-status" id="side-status"></div>
+    </aside>
+
+    <div class="content">
+      <div id="banner" class="banner" hidden></div>
+
+      <main>
+        <!-- SEMAINE -->
+        <section id="view-week" class="view">
+          <div id="hero"></div>
+          <div class="section-head">
+            <div class="weeknav">
+              <button class="icon-btn" id="prev-week" aria-label="Semaine précédente"><svg><use href="#i-left"/></svg></button>
+              <h1 id="week-title">…</h1>
+              <button class="icon-btn" id="next-week" aria-label="Semaine suivante"><svg><use href="#i-right"/></svg></button>
+            </div>
+            <div class="actions">
+              <button class="btn secondary" id="regen"><svg><use href="#i-swap"/></svg>Nouveau programme</button>
+              <button class="btn" id="open-cal"><svg><use href="#i-cal"/></svg>Ajouter au calendrier</button>
+            </div>
+          </div>
+          <div id="week" class="week"></div>
+        </section>
+
+        <!-- SURPRENDS-MOI -->
+        <section id="view-surprise" class="view" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Surprends-moi</h1>
+              <p>Des idées piochées au hasard dans votre bibliothèque. Un titre vous tente ? Programmez-le.</p>
+            </div>
+            <button class="btn secondary" id="reshuffle"><svg><use href="#i-swap"/></svg>Autres idées</button>
+          </div>
+          <div id="shelves"></div>
+        </section>
+
+        <!-- À VENIR -->
+        <section id="view-upcoming" class="view" hidden>
+          <div class="page-head">
+            <div>
+              <h1>À venir</h1>
+              <p>Les nouveaux épisodes (Sonarr) et les sorties de films (Radarr) des trois prochaines semaines.</p>
+            </div>
+          </div>
+          <div id="upcoming" class="upcoming"></div>
+        </section>
+
+        <!-- RÉGLAGES -->
+        <section id="view-settings" class="view" hidden>
+          <div class="page-head"><div><h1>Réglages</h1><p>La famille, le rythme et la semaine type.</p></div></div>
+
+          <div class="settings">
+            <div class="set-section">
+              <div class="set-title"><h2>Connexions</h2><p>Les adresses et clés API se règlent dans le fichier <code>.env</code> sur le serveur.</p></div>
+              <div id="services" class="services"></div>
+            </div>
+
+            <div class="set-section">
+              <div class="set-title"><h2>La famille</h2><p>Calendarr lit la classification des films et séries (G, PG, Tous publics, 12…). Avec 7, un film « PG » passe ; un « PG-13 » non.</p></div>
+              <div class="set-fields">
+                <label class="row"><span>Âge des enfants</span><input id="s-children" type="text" placeholder="8, 4"></label>
+                <label class="row"><span>Âge conseillé max. pour toute la famille</span><input id="s-age-family" type="number" min="0" max="18"></label>
+                <label class="row"><span>Âge conseillé max. pour les enfants</span><input id="s-age-kids" type="number" min="0" max="18"></label>
+              </div>
+            </div>
+
+            <div class="set-section">
+              <div class="set-title"><h2>Le rythme</h2><p>Pour les dessins animés très courts (moins de 20 min), Calendarr remplit le créneau jusqu'à 6 épisodes.</p></div>
+              <div class="set-fields">
+                <label class="row"><span>Épisodes max. par soirée</span><input id="s-eps" type="number" min="1" max="6"></label>
+                <label class="row"><span>Revoir un film après (années)</span><input id="s-rewatch" type="number" min="0" max="20"></label>
+                <label class="row"><span>Rappel avant (minutes)</span><input id="s-reminder" type="number" min="0" max="240"></label>
+              </div>
+            </div>
+
+            <div class="set-section">
+              <div class="set-title"><h2>Les goûts</h2><p>Touchez un genre : une fois pour l'aimer, deux fois pour l'éviter, trois fois pour revenir au neutre.</p></div>
+              <div id="s-genres" class="chips"></div>
+            </div>
+
+            <div class="set-section">
+              <div class="set-title"><h2>La semaine type</h2><p>Les créneaux où Calendarr propose quelque chose. Un jour sans créneau = soirée sans écran.</p></div>
+              <div id="s-week" class="week-editor"></div>
+            </div>
+          </div>
+          <div class="savebar"><button class="btn" id="save"><svg><use href="#i-check"/></svg>Enregistrer</button></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button data-view="week" class="active"><svg><use href="#i-week"/></svg>Semaine</button>
+    <button data-view="surprise"><svg><use href="#i-surprise"/></svg>Surprise</button>
+    <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
+    <button data-view="settings"><svg><use href="#i-settings"/></svg>Réglages</button>
+  </nav>
+
+  <!-- Fenêtre : calendrier -->
+  <dialog id="cal-dialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h2>Ajouter au calendrier</h2>
+      <p class="muted">Abonnez-vous une seule fois : le programme se met ensuite à jour tout seul (environ toutes les heures).</p>
+      <h3>Sur iPhone ou iPad</h3>
+      <ol>
+        <li>Ouvrez cette page <strong>depuis l'iPhone, connecté au Wi-Fi de la maison</strong>.</li>
+        <li>Touchez <a id="webcal-link" class="btn small" href="#">S'abonner sur cet appareil</a></li>
+        <li>Confirmez avec « S'abonner », puis choisissez une couleur.</li>
+      </ol>
+      <h3>Sur Mac ou un autre calendrier</h3>
+      <p class="muted">Calendrier → Fichier → Nouvel abonnement à un calendrier, puis collez ce lien :</p>
+      <div class="copyrow">
+        <input id="cal-url" readonly>
+        <button type="button" class="btn small secondary" id="copy-cal">Copier</button>
+      </div>
+      <p class="hint">Ce lien contient une clé secrète : ne le partagez qu'avec votre famille. Pour que le calendrier se mette à jour hors de la maison, le serveur doit être accessible depuis Internet (voir le guide).</p>
+      <div class="dialog-actions"><button class="btn secondary">Fermer</button></div>
+    </form>
+  </dialog>
+
+  <!-- Fenêtre : programmer un titre -->
+  <dialog id="pick-dialog" class="dialog pick">
+    <form method="dialog">
+      <div class="pick-backdrop" id="pick-backdrop"></div>
+      <div class="dialog-body">
+        <div class="pick-head">
+          <div id="pick-cover"></div>
+          <div>
+            <div id="pick-badges" class="badges"></div>
+            <h2 id="pick-title"></h2>
+            <p id="pick-meta" class="meta"></p>
+            <p id="pick-reason" class="reason"></p>
+          </div>
+        </div>
+        <p id="pick-overview" class="overview"></p>
+        <div class="grid2">
+          <label class="field">Quel jour ?
+            <input id="pick-date" type="date" required>
+          </label>
+          <label class="field">À quelle heure ?
+            <select id="pick-time"></select>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn secondary" value="cancel">Annuler</button>
+          <button class="btn" value="ok" id="pick-ok"><svg><use href="#i-check"/></svg>Programmer</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Calendarr — à lancer avec :  docker compose up -d --build
+# Les adresses et clés API se mettent dans le fichier .env (copie de .env.example).
+services:
+  calendarr:
+    build: .
+    container_name: calendarr
+    restart: unless-stopped
+    ports:
+      - "7979:7979"
+    env_file: .env
+    volumes:
+      - ./config:/config
