@@ -246,6 +246,12 @@ Vos réglages et vos programmes sont gardés dans le dossier `config/`.
 
 Les idées et leur avancement sont dans [docs/backlog.md](docs/backlog.md).
 
+## Publier une nouvelle version
+
+Sur GitHub, onglet **Actions** → **Image Docker** → **Run workflow**, saisissez le numéro (par exemple
+`0.2.0`) puis **Run workflow**. Quelques minutes plus tard, l'image `latest` est à jour et la page de version
+apparaît dans **Releases**. Les notes de version peuvent être préparées dans `docs/releases/v0.2.0.md`.
+
 ## Pour les curieux : comment c'est fait
 
 - `app/clients.py` : la connexion aux API de Radarr, Sonarr et Jellyfin.

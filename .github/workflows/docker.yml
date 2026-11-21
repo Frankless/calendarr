@@ -1,8 +1,10 @@
 # Construit l'image Docker de Calendarr et la publie sur GitHub (ghcr.io/frankless/calendarr).
 #
 # - À chaque modification de main : image « edge » (pour tester avant une version).
-# - À chaque version taguée (v0.1.0, v0.2.0…) : images « latest », « 0.1.0 » et « 0.1 »,
-#   et une page de version (release) GitHub avec la liste des changements.
+# - Pour publier une version : onglet Actions → « Image Docker » → « Run workflow », puis saisir le
+#   numéro (ex. 0.1.0). Le workflow publie les images « latest », « 0.1.0 » et « 0.1 », crée le tag
+#   v0.1.0 et la page de version (release) avec la liste des changements.
+#   Pousser soi-même un tag v0.1.0 fait la même chose.
 name: Image Docker
 
 on:
@@ -10,6 +12,11 @@ on:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Numéro de la version à publier, sans le v (ex. 0.1.0). Vide = simple image edge."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -18,8 +25,26 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Numéro de version
+        id: v
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT" ]; then V="${INPUT#v}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#v}"
+          else V=""; fi
+          if [ -n "$V" ] && ! echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Numéro de version invalide : $V (attendu : 1.2.3)"; exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "minor=${V%.*}" >> "$GITHUB_OUTPUT"
+          echo "tag=${V:+v$V}" >> "$GITHUB_OUTPUT"
+          echo "label=${V:-edge-${GITHUB_SHA::7}}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
 
@@ -37,10 +62,10 @@ jobs:
           images: ghcr.io/frankless/calendarr
           flavor: latest=false
           tags: |
-            type=edge,branch=main
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ steps.v.outputs.version == '' }}
+            type=raw,value=${{ steps.v.outputs.version }},enable=${{ steps.v.outputs.version != '' }}
+            type=raw,value=${{ steps.v.outputs.minor }},enable=${{ steps.v.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ steps.v.outputs.version != '' }}
             type=sha,format=short
 
       - uses: docker/build-push-action@v6
@@ -51,23 +76,26 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('edge-{0}', github.sha) }}
+            VERSION=${{ steps.v.outputs.label }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Créer la page de version
+      - name: Créer le tag et la page de version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
-            --title "Calendarr $GITHUB_REF_NAME" \
-            --notes-file docs/releases/"$GITHUB_REF_NAME".md 2>/dev/null \
-          || gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "Calendarr $GITHUB_REF_NAME"
+          NOTES="docs/releases/$TAG.md"
+          if [ -f "$NOTES" ]; then
+            gh release create "$TAG" --title "Calendarr $TAG" --generate-notes --target "$GITHUB_SHA" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" --title "Calendarr $TAG" --generate-notes --target "$GITHUB_SHA"
+          fi
