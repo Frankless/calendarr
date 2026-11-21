@@ -42,49 +42,52 @@ Calendarr est publié sous forme d'image Docker prête à l'emploi : `ghcr.io/fr
 
 Dans l'interface Docker de votre NAS (UGOS : **Docker → Projet → Créer**, Synology : **Container Manager →
 Projet → Créer**, Portainer : **Stacks → Add stack**), collez le contenu du fichier
-[`docker-compose.yml`](docker-compose.yml).
+[`docker-compose.yml`](docker-compose.yml) **tel quel**, puis lancez le projet.
 
-### 2. Renseigner les adresses et les clés API
+### 2. Ouvrir Calendarr
 
-Dans ce même texte, remplissez les lignes de la partie `environment:` :
+Ouvrez **http://ADRESSE-DU-NAS:7979** dans votre navigateur. Calendarr démarre en **mode découverte**,
+avec une bibliothèque d'exemple.
 
-| Ligne | Où la trouver |
+### 3. Brancher Radarr, Sonarr et Jellyfin
+
+Dans **Réglages → Connexions**, remplissez pour chaque service :
+
+| Champ | Où le trouver |
 |---|---|
-| `RADARR_URL` | L'adresse que vous tapez pour ouvrir Radarr, par exemple `http://192.168.1.20:7878` |
-| `RADARR_API_KEY` | Radarr → **Settings → General → Security → API Key** |
-| `SONARR_URL` | Pareil pour Sonarr, par exemple `http://192.168.1.20:8989` |
-| `SONARR_API_KEY` | Sonarr → **Settings → General → Security → API Key** |
-| `JELLYFIN_URL` | Par exemple `http://192.168.1.20:8096` |
-| `JELLYFIN_API_KEY` | Jellyfin → **Tableau de bord → Clés API → +** (nommez-la « Calendarr ») |
-| `JELLYFIN_USER` | Votre nom d'utilisateur Jellyfin (son historique sert pour le « déjà vu ») |
+| Adresse | Celle que vous tapez pour ouvrir le service, par exemple `http://192.168.1.20:7878` pour Radarr, `:8989` pour Sonarr, `:8096` pour Jellyfin |
+| Clé API Radarr | Radarr → **Settings → General → Security → API Key** |
+| Clé API Sonarr | Sonarr → **Settings → General → Security → API Key** |
+| Clé API Jellyfin | Jellyfin → **Tableau de bord → Clés API → +** (nommez-la « Calendarr ») |
+| Utilisateur Jellyfin | Choisi dans la liste une fois la clé enregistrée : son historique sert pour le « déjà vu » |
+
+Cliquez **Enregistrer et tester** : les pastilles passent au vert, et le programme de la semaine est
+refait avec votre vraie bibliothèque.
 
 Si Radarr, Sonarr et Jellyfin tournent sur le même NAS, utilisez **l'adresse IP du NAS**, pas
 `localhost` : pour Calendarr, `localhost` désigne son propre conteneur.
 
-> 💡 Laissez les clés vides pour démarrer en **mode découverte**, avec une bibliothèque d'exemple. C'est
-> pratique pour essayer l'interface.
-
-### 3. Démarrer
-
-Lancez le projet. Ouvrez ensuite **http://ADRESSE-DU-NAS:7979** dans votre navigateur. Dans l'onglet
-**Réglages**, les trois pastilles Radarr, Sonarr et Jellyfin doivent être vertes.
-
-Les réglages et les programmes sont gardés dans le dossier `config` du projet (monté sur `/config`).
+Les clés sont enregistrées sur le NAS, dans le dossier `config` du projet (fichier `connections.json`),
+avec vos réglages et vos programmes. L'app n'affiche jamais une clé en entier : pour en changer, collez la
+nouvelle ; laissez le champ vide pour garder l'ancienne.
 
 ### Avec un terminal
 
 ```bash
 mkdir calendarr && cd calendarr
 curl -O https://raw.githubusercontent.com/Frankless/calendarr/main/docker-compose.yml
-nano docker-compose.yml     # remplir les adresses et les clés API
 docker compose up -d
 ```
 
 ### Ou : l'ajouter au docker-compose de votre arr stack
 
 Copiez le bloc `calendarr:` du fichier `docker-compose.yml` sous `services:`. Si Calendarr est sur le
-même réseau Docker que vos autres services, vous pouvez utiliser les noms des conteneurs, par exemple
-`RADARR_URL: http://radarr:7878`.
+même réseau Docker que vos autres services, vous pouvez utiliser les noms des conteneurs dans les
+adresses, par exemple `http://radarr:7878`.
+
+> Pour les habitués : les variables `RADARR_URL`, `RADARR_API_KEY`, `SONARR_URL`, `SONARR_API_KEY`,
+> `JELLYFIN_URL`, `JELLYFIN_API_KEY` et `JELLYFIN_USER` fonctionnent aussi. Ce qui est saisi dans l'app
+> passe avant.
 
 ## Ajouter le programme à l'iPhone (iCloud)
 
@@ -100,11 +103,11 @@ joignable depuis Internet. Deux solutions :
 
 - **Tailscale** (le plus simple et le plus sûr) : une app à installer sur le serveur et sur les téléphones.
 - Un **reverse proxy** (Nginx Proxy Manager, Traefik, Caddy…), si vous en avez déjà un pour Jellyfin.
-  Dans ce cas, renseignez `PUBLIC_URL` dans le projet Docker.
+  Dans ce cas, ajoutez `PUBLIC_URL: https://votre-adresse` dans la partie `environment:` du projet Docker.
 
-Le lien du calendrier contient une clé secrète. Seul ce lien est lisible sans mot de passe. Par contre,
-**l'interface elle-même n'a pas de mot de passe** : ne l'exposez pas sur Internet sans protection
-(Tailscale, ou l'authentification de votre reverse proxy).
+Le lien du calendrier contient une clé secrète. Par contre, **l'interface elle-même n'a pas de mot de
+passe**, et c'est elle qui garde vos clés API : ne l'exposez pas sur Internet sans protection (Tailscale,
+ou l'authentification de votre reverse proxy).
 
 ## Régler la semaine type
 
@@ -150,7 +153,6 @@ Vos réglages et vos programmes sont gardés dans le dossier `config/`.
 | Pastille rouge « Injoignable » | L'adresse est fausse, ou le conteneur ne voit pas l'autre service. Essayez l'adresse IP du serveur plutôt que `localhost`. |
 | « Clé API refusée » | Recopiez la clé, sans espace au début ni à la fin. |
 | « Rien ne correspond » sur un créneau | La durée maximum est trop courte, ou l'âge maximum trop bas, ou tout a déjà été vu. Élargissez le créneau dans les Réglages. |
-| Après avoir modifié une adresse ou une clé | Relancez le projet pour qu'elle soit prise en compte. |
 | Le NAS refuse de télécharger l'image (« unauthorized ») | Sur GitHub, ouvrez le paquet `calendarr` (onglet **Packages** de votre profil) → **Package settings** → **Change visibility** → **Public**. |
 | Voir ce qui se passe | Le journal (« Logs ») du conteneur dans l'interface Docker, ou `docker logs calendarr` |
 

@@ -315,6 +315,18 @@ def load_plan(start: date) -> dict | None:
     return None
 
 
+def clear_plans(from_week: date) -> None:
+    """Efface les programmes à partir de cette semaine (ils seront refaits)."""
+    if not PLANS_DIR.exists():
+        return
+    for p in PLANS_DIR.glob("*.json"):
+        try:
+            if date.fromisoformat(p.stem) >= from_week:
+                p.unlink()
+        except ValueError:
+            continue
+
+
 def save_plan(plan: dict) -> None:
     PLANS_DIR.mkdir(parents=True, exist_ok=True)
     _path(date.fromisoformat(plan["week"])).write_text(json.dumps(plan, ensure_ascii=False, indent=1), "utf-8")

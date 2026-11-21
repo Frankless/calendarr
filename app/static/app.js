@@ -165,7 +165,7 @@ function renderWeek() {
   const warn = (plan.warnings || []).join(" · ");
   const banner = $("#banner");
   if (state.status?.demo) {
-    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. Ajoutez vos adresses et clés API dans la configuration du conteneur (voir le guide).`;
+    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. <a href="#settings" data-goto="settings">Ajoutez leurs adresses et clés API dans Réglages → Connexions</a>.`;
     banner.hidden = false;
   } else if (warn) {
     banner.innerHTML = `<b>Attention :</b> ${esc(warn)}`;
@@ -352,9 +352,7 @@ async function loadSettings() {
   const s = state.settings;
   renderSideStatus();
 
-  $("#services").innerHTML = Object.entries(status.services).map(([name, info]) => `
-    <div class="service"><span class="dot ${info.ok ? "ok" : info.configured ? "ko" : ""}"></span>
-    <b>${name[0].toUpperCase() + name.slice(1)}</b><span class="meta">${esc(info.message)}</span></div>`).join("");
+  loadConnections();
 
   $("#s-children").value = s.children_ages.join(", ");
   $("#s-age-family").value = s.max_age_family;
@@ -455,6 +453,70 @@ $("#save").onclick = async () => {
     $("#save").disabled = false;
   }
 };
+
+/* ---------- connexions ---------- */
+function renderConnections(conn, services) {
+  for (const svc of ["radarr", "sonarr", "jellyfin"]) {
+    const card = $(`.service-card[data-svc="${svc}"]`);
+    const c = conn[svc], info = services[svc];
+    $('[data-k="url"]', card).value = c.url || "";
+    const key = $('[data-k="key"]', card);
+    key.value = "";
+    key.placeholder = c.has_key ? `Clé enregistrée (${c.key_hint}) : laissez vide pour la garder` : "Collez la clé API ici";
+    $(".dot", card).className = `dot ${info.ok ? "ok" : info.configured ? "ko" : ""}`;
+    $("[data-status]", card).textContent = info.message;
+  }
+  state.jfUser = conn.jellyfin_user || "";
+}
+
+async function loadJellyfinUsers() {
+  const sel = $("#jf-user");
+  const users = await api("/api/jellyfin/users").catch(() => []);
+  const current = state.jfUser;
+  const names = [...new Set([...users, ...(current ? [current] : [])])];
+  sel.innerHTML = `<option value="">Le premier administrateur</option>` +
+    names.map((n) => `<option ${n === current ? "selected" : ""}>${esc(n)}</option>`).join("");
+}
+
+async function loadConnections() {
+  const res = await api("/api/connections");
+  renderConnections(res.connections, res.services);
+  loadJellyfinUsers();
+}
+
+$("#save-conn").onclick = async () => {
+  const body = { jellyfin_user: $("#jf-user").value };
+  for (const card of $$(".service-card")) {
+    body[card.dataset.svc] = { url: $('[data-k="url"]', card).value.trim(), key: $('[data-k="key"]', card).value.trim() };
+  }
+  const btn = $("#save-conn");
+  btn.disabled = true;
+  btn.lastChild.textContent = "Test en cours…";
+  try {
+    const res = await api("/api/connections", { method: "PUT", body: JSON.stringify(body) });
+    renderConnections(res.connections, res.services);
+    await loadJellyfinUsers();
+    state.status = await api("/api/status");
+    renderSideStatus();
+    const ok = Object.values(res.services).filter((x) => x.ok).length;
+    const configured = Object.values(res.services).filter((x) => x.configured).length;
+    toast(configured === 0 ? "Enregistré. Mode découverte."
+      : ok === configured ? "Connexions enregistrées et testées ✓"
+      : "Enregistré, mais une connexion ne répond pas : voir le message rouge.");
+    state.shelves = [];
+    await loadWeek();
+  } catch (e) {
+    toast("Oups : " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.lastChild.textContent = "Enregistrer et tester";
+  }
+};
+
+document.addEventListener("click", (ev) => {
+  const go = ev.target.closest("[data-goto]");
+  if (go) { ev.preventDefault(); show(go.dataset.goto); }
+});
 
 /* ---------- démarrage ---------- */
 (async function init() {

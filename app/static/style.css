@@ -426,3 +426,15 @@ input:focus, select:focus { outline: none; border-color: var(--indigo-500); box-
   .savebar { bottom: 64px; }
   .toast { bottom: 84px; }
 }
+
+/* ---------- connexions ---------- */
+.service-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 10px;
+  background: var(--gray-800); box-shadow: 0 0 0 1px var(--gray-700);
+}
+.service-head { display: flex; align-items: center; gap: 10px; }
+.service-head b { color: var(--white); }
+.service-head .meta { margin-left: auto; text-align: right; }
+.service-card .field small { font-weight: 500; color: var(--gray-500); margin-left: 4px; }
+.service-card .field { margin: 0; }
+.conn-actions { display: flex; justify-content: flex-end; }

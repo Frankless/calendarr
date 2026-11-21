@@ -90,9 +90,29 @@
           <div class="page-head"><div><h1>Réglages</h1><p>La famille, le rythme et la semaine type.</p></div></div>
 
           <div class="settings">
-            <div class="set-section">
-              <div class="set-title"><h2>Connexions</h2><p>Les adresses et clés API se règlent dans la configuration du conteneur Docker (partie <code>environment</code>).</p></div>
-              <div id="services" class="services"></div>
+            <div class="set-section" id="connections">
+              <div class="set-title"><h2>Connexions</h2><p>L'adresse de chaque service (celle que vous tapez dans le navigateur) et sa clé API. Si tout tourne sur le même NAS, mettez l'adresse IP du NAS, pas « localhost ».</p></div>
+              <div class="services">
+                <div class="service-card" data-svc="radarr">
+                  <div class="service-head"><span class="dot"></span><b>Radarr</b><span class="meta" data-status></span></div>
+                  <label class="field">Adresse<input data-k="url" type="url" placeholder="http://192.168.1.20:7878" autocomplete="off"></label>
+                  <label class="field">Clé API <small>Radarr → Settings → General → Security → API Key</small><input data-k="key" type="password" autocomplete="new-password"></label>
+                </div>
+                <div class="service-card" data-svc="sonarr">
+                  <div class="service-head"><span class="dot"></span><b>Sonarr</b><span class="meta" data-status></span></div>
+                  <label class="field">Adresse<input data-k="url" type="url" placeholder="http://192.168.1.20:8989" autocomplete="off"></label>
+                  <label class="field">Clé API <small>Sonarr → Settings → General → Security → API Key</small><input data-k="key" type="password" autocomplete="new-password"></label>
+                </div>
+                <div class="service-card" data-svc="jellyfin">
+                  <div class="service-head"><span class="dot"></span><b>Jellyfin</b><span class="meta" data-status></span></div>
+                  <label class="field">Adresse<input data-k="url" type="url" placeholder="http://192.168.1.20:8096" autocomplete="off"></label>
+                  <label class="field">Clé API <small>Jellyfin → Tableau de bord → Clés API → +</small><input data-k="key" type="password" autocomplete="new-password"></label>
+                  <label class="field">Utilisateur dont on lit le « déjà vu »<select id="jf-user"><option value="">Le premier administrateur</option></select></label>
+                </div>
+                <div class="conn-actions">
+                  <button type="button" class="btn" id="save-conn"><svg><use href="#i-check"/></svg>Enregistrer et tester</button>
+                </div>
+              </div>
             </div>
 
             <div class="set-section">

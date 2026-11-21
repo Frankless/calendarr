@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import ics, library, planner, settings
-from .clients import Config, check_connections
+from .clients import Config, check_connections, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -65,6 +65,41 @@ async def status(request: Request):
     }
 
 
+@app.get("/api/connections")
+async def get_connections():
+    return {"connections": Config.public(), "services": await check_connections()}
+
+
+@app.put("/api/connections")
+async def put_connections(data: dict = Body(...)):
+    before = Config.public() | {"keys": (Config.radarr_key, Config.sonarr_key, Config.jellyfin_key)}
+    flat = {}
+    for svc in ("radarr", "sonarr", "jellyfin"):
+        part = data.get(svc) or {}
+        if "url" in part:
+            flat[f"{svc}_url"] = part["url"]
+        if part.get("key"):
+            flat[f"{svc}_key"] = part["key"]
+    if "jellyfin_user" in data:
+        flat["jellyfin_user"] = data["jellyfin_user"]
+    Config.save(flat)
+    await library.get(force=True)
+    after = Config.public() | {"keys": (Config.radarr_key, Config.sonarr_key, Config.jellyfin_key)}
+    if before != after:
+        # la bibliothèque ou l'historique ont changé : on refait les programmes
+        # à partir de cette semaine (les semaines passées sont gardées)
+        planner.clear_plans(planner.week_start(ics.today_local()))
+    return {"connections": Config.public(), "services": await check_connections(), "demo": Config.demo()}
+
+
+@app.get("/api/jellyfin/users")
+async def get_jellyfin_users():
+    try:
+        return await jellyfin_users()
+    except Exception:  # noqa: BLE001
+        return []
+
+
 @app.get("/api/settings")
 async def get_settings():
     items, _ = await library.get()
@@ -85,7 +120,9 @@ async def put_settings(data: dict = Body(...)):
 
 @app.get("/api/plan")
 async def get_plan(week: str | None = None):
-    return await planner.get_plan(_week(week), settings.load())
+    plan = await planner.get_plan(_week(week), settings.load())
+    _, warnings = await library.get()
+    return plan | {"warnings": warnings}  # l'état des connexions d'aujourd'hui, pas celui du jour de création
 
 
 @app.post("/api/plan/regenerate")

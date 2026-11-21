@@ -7,9 +7,11 @@ d'origine. Le planificateur n'a ainsi pas à connaître les détails des API.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from datetime import date, datetime
+from pathlib import Path
 
 import httpx
 
@@ -22,14 +24,84 @@ def _env(name: str) -> str:
     return (os.environ.get(name) or "").strip().rstrip("/")
 
 
+CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "/config"))
+CONNECTIONS_FILE = CONFIG_DIR / "connections.json"
+
+# champ -> variable d'environnement (facultative, utilisée si rien n'est saisi dans l'app)
+FIELDS = {
+    "radarr_url": "RADARR_URL",
+    "radarr_key": "RADARR_API_KEY",
+    "sonarr_url": "SONARR_URL",
+    "sonarr_key": "SONARR_API_KEY",
+    "jellyfin_url": "JELLYFIN_URL",
+    "jellyfin_key": "JELLYFIN_API_KEY",
+    "jellyfin_user": "JELLYFIN_USER",
+}
+
+
+def _clean(field: str, value) -> str:
+    value = str(value or "").strip()
+    if field.endswith("_url"):
+        value = value.rstrip("/")
+        if value and "://" not in value:
+            value = "http://" + value
+    return value
+
+
 class Config:
-    radarr_url = _env("RADARR_URL")
-    radarr_key = _env("RADARR_API_KEY")
-    sonarr_url = _env("SONARR_URL")
-    sonarr_key = _env("SONARR_API_KEY")
-    jellyfin_url = _env("JELLYFIN_URL")
-    jellyfin_key = _env("JELLYFIN_API_KEY")
-    jellyfin_user = _env("JELLYFIN_USER")
+    """Adresses et clés API. Elles se saisissent dans l'app (Réglages →
+    Connexions) et sont enregistrées dans /config/connections.json.
+    Les variables d'environnement restent possibles en secours."""
+
+    radarr_url = radarr_key = sonarr_url = sonarr_key = ""
+    jellyfin_url = jellyfin_key = jellyfin_user = ""
+
+    @classmethod
+    def reload(cls) -> None:
+        saved = {}
+        if CONNECTIONS_FILE.exists():
+            try:
+                saved = json.loads(CONNECTIONS_FILE.read_text("utf-8"))
+            except (OSError, json.JSONDecodeError):
+                log.warning("connections.json illisible, ignoré")
+        for field, env in FIELDS.items():
+            setattr(cls, field, _clean(field, saved.get(field)) or _clean(field, _env(env)))
+
+    @classmethod
+    def save(cls, data: dict) -> None:
+        """Enregistre les connexions. Une clé laissée vide garde l'ancienne."""
+        current = {f: getattr(cls, f) for f in FIELDS}
+        for field in FIELDS:
+            if field not in data or data[field] is None:
+                continue
+            value = _clean(field, data[field])
+            if field.endswith("_key") and not value:
+                continue  # champ laissé vide : on garde la clé déjà enregistrée
+            current[field] = value
+        # sans adresse, la clé ne sert à rien : on l'efface
+        for svc in ("radarr", "sonarr", "jellyfin"):
+            if not current[f"{svc}_url"]:
+                current[f"{svc}_key"] = ""
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = CONNECTIONS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(current, indent=2), "utf-8")
+        os.chmod(tmp, 0o600)
+        tmp.replace(CONNECTIONS_FILE)
+        cls.reload()
+
+    @classmethod
+    def public(cls) -> dict:
+        """Ce qu'on renvoie au navigateur : jamais la clé complète."""
+        def hint(key: str) -> str:
+            return f"••••{key[-4:]}" if len(key) > 8 else ("••••" if key else "")
+        return {
+            svc: {
+                "url": getattr(cls, f"{svc}_url"),
+                "has_key": bool(getattr(cls, f"{svc}_key")),
+                "key_hint": hint(getattr(cls, f"{svc}_key")),
+            }
+            for svc in ("radarr", "sonarr", "jellyfin")
+        } | {"jellyfin_user": cls.jellyfin_user}
 
     @classmethod
     def radarr(cls) -> bool:
@@ -46,6 +118,9 @@ class Config:
     @classmethod
     def demo(cls) -> bool:
         return not (cls.radarr() or cls.sonarr())
+
+
+Config.reload()
 
 
 # --------------------------------------------------------------------------- #
@@ -236,6 +311,14 @@ async def jellyfin_user_id(client: httpx.AsyncClient) -> str | None:
         log.warning("Utilisateur Jellyfin « %s » introuvable, on prend le premier.", Config.jellyfin_user)
     admins = [u for u in users if (u.get("Policy") or {}).get("IsAdministrator")]
     return (admins or users)[0]["Id"]
+
+
+async def jellyfin_users() -> list[str]:
+    if not Config.jellyfin():
+        return []
+    async with httpx.AsyncClient() as client:
+        users = await _get(client, f"{Config.jellyfin_url}/Users", headers=_jf_headers())
+    return [u.get("Name") for u in users if u.get("Name")]
 
 
 def _parse_dt(value: str | None) -> str | None:
