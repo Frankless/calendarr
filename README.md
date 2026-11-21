@@ -35,24 +35,18 @@ indigo, menu latéral, jaquettes avec badges.
 
 ## Installation
 
-Il faut un serveur sur lequel Docker tourne déjà (celui de votre arr stack fait l'affaire).
-Tout se fait dans un terminal (SSH) sur ce serveur.
+Calendarr est publié sous forme d'image Docker prête à l'emploi : `ghcr.io/frankless/calendarr:latest`
+(processeurs Intel/AMD et ARM). Pas besoin de terminal : l'interface Docker de votre NAS suffit.
 
-### 1. Télécharger Calendarr
+### 1. Créer le projet
 
-```bash
-git clone https://github.com/Frankless/calendarr.git
-cd calendarr
-```
+Dans l'interface Docker de votre NAS (UGOS : **Docker → Projet → Créer**, Synology : **Container Manager →
+Projet → Créer**, Portainer : **Stacks → Add stack**), collez le contenu du fichier
+[`docker-compose.yml`](docker-compose.yml).
 
-### 2. Renseigner vos clés API
+### 2. Renseigner les adresses et les clés API
 
-```bash
-cp .env.example .env
-nano .env
-```
-
-Remplissez les lignes suivantes :
+Dans ce même texte, remplissez les lignes de la partie `environment:` :
 
 | Ligne | Où la trouver |
 |---|---|
@@ -64,37 +58,33 @@ Remplissez les lignes suivantes :
 | `JELLYFIN_API_KEY` | Jellyfin → **Tableau de bord → Clés API → +** (nommez-la « Calendarr ») |
 | `JELLYFIN_USER` | Votre nom d'utilisateur Jellyfin (son historique sert pour le « déjà vu ») |
 
-Enregistrez avec `Ctrl+O`, puis `Entrée`, puis quittez avec `Ctrl+X`.
+Si Radarr, Sonarr et Jellyfin tournent sur le même NAS, utilisez **l'adresse IP du NAS**, pas
+`localhost` : pour Calendarr, `localhost` désigne son propre conteneur.
 
-> 💡 Sans clé API, Calendarr démarre en **mode découverte**, avec une bibliothèque d'exemple. C'est
+> 💡 Laissez les clés vides pour démarrer en **mode découverte**, avec une bibliothèque d'exemple. C'est
 > pratique pour essayer l'interface.
 
 ### 3. Démarrer
 
-```bash
-docker compose up -d --build
-```
+Lancez le projet. Ouvrez ensuite **http://ADRESSE-DU-NAS:7979** dans votre navigateur. Dans l'onglet
+**Réglages**, les trois pastilles Radarr, Sonarr et Jellyfin doivent être vertes.
 
-Ouvrez ensuite **http://ADRESSE-DU-SERVEUR:7979** dans votre navigateur. Dans l'onglet **Réglages**,
-les trois pastilles Radarr, Sonarr et Jellyfin doivent être vertes.
+Les réglages et les programmes sont gardés dans le dossier `config` du projet (monté sur `/config`).
+
+### Avec un terminal
+
+```bash
+mkdir calendarr && cd calendarr
+curl -O https://raw.githubusercontent.com/Frankless/calendarr/main/docker-compose.yml
+nano docker-compose.yml     # remplir les adresses et les clés API
+docker compose up -d
+```
 
 ### Ou : l'ajouter au docker-compose de votre arr stack
 
-Si vous préférez tout garder dans un seul fichier, ajoutez ce bloc sous `services:`. Adaptez le chemin
-`build:` à l'endroit où vous avez téléchargé Calendarr. Dans ce cas, vous pouvez utiliser les noms des
-conteneurs dans le `.env`, par exemple `RADARR_URL=http://radarr:7878`.
-
-```yaml
-  calendarr:
-    build: ./calendarr
-    container_name: calendarr
-    restart: unless-stopped
-    ports:
-      - "7979:7979"
-    env_file: ./calendarr/.env
-    volumes:
-      - ./calendarr/config:/config
-```
+Copiez le bloc `calendarr:` du fichier `docker-compose.yml` sous `services:`. Si Calendarr est sur le
+même réseau Docker que vos autres services, vous pouvez utiliser les noms des conteneurs, par exemple
+`RADARR_URL: http://radarr:7878`.
 
 ## Ajouter le programme à l'iPhone (iCloud)
 
@@ -110,7 +100,7 @@ joignable depuis Internet. Deux solutions :
 
 - **Tailscale** (le plus simple et le plus sûr) : une app à installer sur le serveur et sur les téléphones.
 - Un **reverse proxy** (Nginx Proxy Manager, Traefik, Caddy…), si vous en avez déjà un pour Jellyfin.
-  Dans ce cas, renseignez `PUBLIC_URL` dans le `.env`.
+  Dans ce cas, renseignez `PUBLIC_URL` dans le projet Docker.
 
 Le lien du calendrier contient une clé secrète. Seul ce lien est lisible sans mot de passe. Par contre,
 **l'interface elle-même n'a pas de mot de passe** : ne l'exposez pas sur Internet sans protection
@@ -147,11 +137,9 @@ semaine en cours, utilisez **Nouveau programme**.
 
 ## Mettre à jour Calendarr
 
-```bash
-cd calendarr
-git pull
-docker compose up -d --build
-```
+Une nouvelle image est publiée à chaque modification du dépôt. Pour la récupérer : dans l'interface
+Docker du NAS, **arrêtez le projet, mettez l'image à jour (« Pull » / « Mettre à jour »), puis relancez-le**.
+En terminal : `docker compose pull && docker compose up -d`.
 
 Vos réglages et vos programmes sont gardés dans le dossier `config/`.
 
@@ -159,11 +147,12 @@ Vos réglages et vos programmes sont gardés dans le dossier `config/`.
 
 | Problème | Solution |
 |---|---|
-| Pastille rouge « Injoignable » | L'adresse dans `.env` est fausse, ou le conteneur ne voit pas l'autre service. Essayez l'adresse IP du serveur plutôt que `localhost`. |
+| Pastille rouge « Injoignable » | L'adresse est fausse, ou le conteneur ne voit pas l'autre service. Essayez l'adresse IP du serveur plutôt que `localhost`. |
 | « Clé API refusée » | Recopiez la clé, sans espace au début ni à la fin. |
 | « Rien ne correspond » sur un créneau | La durée maximum est trop courte, ou l'âge maximum trop bas, ou tout a déjà été vu. Élargissez le créneau dans les Réglages. |
-| Après avoir modifié `.env` | `docker compose up -d` pour relancer. |
-| Voir ce qui se passe | `docker logs calendarr` |
+| Après avoir modifié une adresse ou une clé | Relancez le projet pour qu'elle soit prise en compte. |
+| Le NAS refuse de télécharger l'image (« unauthorized ») | Sur GitHub, ouvrez le paquet `calendarr` (onglet **Packages** de votre profil) → **Package settings** → **Change visibility** → **Public**. |
+| Voir ce qui se passe | Le journal (« Logs ») du conteneur dans l'interface Docker, ou `docker logs calendarr` |
 
 ## Pour les curieux : comment c'est fait
 

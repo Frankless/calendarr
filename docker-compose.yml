@@ -1,12 +1,28 @@
-# Calendarr — à lancer avec :  docker compose up -d --build
-# Les adresses et clés API se mettent dans le fichier .env (copie de .env.example).
+# Calendarr
+# Sur un NAS (UGOS, Synology, QNAP…) : créez un « Projet » Docker et collez ce
+# fichier, puis remplissez les adresses et les clés API ci-dessous.
 services:
   calendarr:
-    build: .
+    image: ghcr.io/frankless/calendarr:latest
     container_name: calendarr
     restart: unless-stopped
     ports:
       - "7979:7979"
-    env_file: .env
+    environment:
+      # Adresse et clé API de Radarr (Settings > General > Security > API Key)
+      RADARR_URL: http://192.168.1.20:7878
+      RADARR_API_KEY: ""
+      # Adresse et clé API de Sonarr (Settings > General > Security > API Key)
+      SONARR_URL: http://192.168.1.20:8989
+      SONARR_API_KEY: ""
+      # Jellyfin (Tableau de bord > Clés API > +) et ton nom d'utilisateur
+      JELLYFIN_URL: http://192.168.1.20:8096
+      JELLYFIN_API_KEY: ""
+      JELLYFIN_USER: ""
+      TZ: Europe/Brussels
+      # Facultatif : adresse publique si Calendarr est accessible depuis Internet
+      PUBLIC_URL: ""
     volumes:
       - ./config:/config
+    # Pour construire l'image soi-même au lieu de la télécharger :
+    # remplacez la ligne « image: » par « build: . »

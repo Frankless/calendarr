@@ -165,7 +165,7 @@ function renderWeek() {
   const warn = (plan.warnings || []).join(" · ");
   const banner = $("#banner");
   if (state.status?.demo) {
-    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. Le guide d'installation explique comment ajouter vos clés API.`;
+    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. Ajoutez vos adresses et clés API dans la configuration du conteneur (voir le guide).`;
     banner.hidden = false;
   } else if (warn) {
     banner.innerHTML = `<b>Attention :</b> ${esc(warn)}`;
