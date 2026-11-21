@@ -32,6 +32,17 @@ Calendarr picks a title from the library that:
 - for a series, continues where you left off, one or two episodes per evening. Very short episodes, such
   as cartoons, are grouped.
 
+Nothing is scheduled until the family chooses it. What Calendarr proposes is an "Idée" (idea), shown as a
+quiet card; "On le garde" (Keep it) or "On regarde ça" (Let's watch this) confirms it. Only confirmed
+programs go to the iCloud calendar and the Jellyfin collection.
+
+Series have three states, set in the "Séries" page: "On la regarde" (watching: its next episodes can be
+scheduled), "Plus tard" (later: never scheduled, with an optional reminder in 1, 3 or 6 months or on a
+date) and "Pas pour nous" (not for us: hidden everywhere). Each series also has an audience (parents,
+kids, family). On first launch, series already started in Jellyfin are "On la regarde" and the others
+"Plus tard". A series newly downloaded by Sonarr lands in "À classer" (to sort), which only the
+administrator can sort; family accounts can start a "Plus tard" series with "On commence".
+
 "Autre idée" opens a list of suggestions for the slot: pick one, or let chance decide. On each card,
 "On l'a vu" (We watched it) marks the movie or the episodes as watched in Jellyfin, for the right family
 member. On an upcoming program, "Déjà vu" (Already seen) drops the movie and opens the suggestions to
@@ -257,6 +268,7 @@ Ideas in progress and to come are in [docs/backlog.md](docs/backlog.md).
 - `app/clients.py` talks to the Radarr, Sonarr and Jellyfin APIs.
 - `app/planner.py` holds the rules that decide what to watch.
 - `app/feedback.py` remembers the choices made in Surprends-moi.
+- `app/watchstate.py` keeps the state of each series (`/config/watchstate.json`; delete it to start over).
 - `app/ics.py` builds the calendar.
 - `app/static/` is the interface: HTML, CSS and JavaScript, no framework, using the system font.
 

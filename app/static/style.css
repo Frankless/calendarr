@@ -803,3 +803,50 @@ a.mini { text-decoration: none; }
 .alt-text small { color: var(--text-2); font-size: 12px; }
 .alt-text em { color: var(--accent-text); font-style: normal; font-size: 12px; }
 @media (max-width: 768px) { .alt-list { grid-template-columns: 1fr; } }
+
+/* ---------- Idée / confirmé ---------- */
+.prog.idea { background: transparent; border-style: dashed; box-shadow: none; }
+.prog.idea h3 { color: var(--text-2); font-weight: 600; }
+.prog.idea .cover { opacity: .85; }
+.badge.idea-tag { background: transparent; border: 1px dashed var(--line); color: var(--text-2); }
+.mini.keep { border-color: var(--accent); color: var(--accent-text); background: transparent; }
+.mini.keep:hover { background: var(--accent-soft); }
+.hero.big.idea { box-shadow: none; border: 1px dashed var(--line); }
+.hero.big.idea .kicker { color: var(--text-2); }
+
+/* ---------- Séries ---------- */
+.serie-section { margin-bottom: 28px; }
+.serie-section > .muted { margin: -6px 0 12px; }
+.serie-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.serie-grid.pad { padding: 0 16px 16px; }
+.serie-card {
+  display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 12px; border-radius: var(--r-panel);
+  background: var(--surface); border: 1px solid var(--line);
+}
+.serie-card.due { border-color: var(--accent); }
+.serie-card .cover { width: 64px; }
+.serie-card .cover.fake b { font-size: 9px; }
+.serie-card .cover.fake small, .serie-card .cover .type { display: none; }
+.serie-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.serie-body b { font-weight: 600; }
+.serie-row select { width: auto; padding: 4px 8px; font-size: 13px; }
+.serie-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.small { font-size: 12px; }
+.nav-count { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600; text-align: center; }
+.remind-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 16px; }
+
+/* Avis sur Ce soir */
+.notices { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.notice {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; text-align: left; cursor: pointer;
+  border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit;
+}
+.notice span { flex: 1; }
+.notice svg { width: 18px; height: 18px; color: var(--accent-text); }
+.notice:hover { border-color: var(--accent); }
+
+@media (max-width: 768px) {
+  .bottom-nav { grid-template-columns: repeat(6, 1fr); }
+  .bottom-nav button { font-size: 10px; }
+  .serie-grid { grid-template-columns: 1fr; }
+}

@@ -48,6 +48,18 @@ ans", i.e. "All ages", "12 and up").
   watched opens the same list to pick something else. Series episodes and upcoming releases are cached
   for 10 minutes, so the button responds faster.
 
+## Brief of 21 November: "nothing is scheduled until the family chooses it"
+
+- [x] Step 1: field-test fixes (see P1 above).
+- [x] Step 2: series states and idea / confirmed. "On la regarde" / "Plus tard" (reminder in 1, 3, 6
+  months or on a date) / "Pas pour nous", plus "À classer" for new Sonarr downloads (administrator only).
+  Prefilled from Jellyfin on first launch. Stored in `/config/watchstate.json`. The planner only
+  schedules "On la regarde" series for their audience; proposals are "ideas" until confirmed; the iCal
+  feed and the Jellyfin collection only contain confirmed programs.
+- [ ] Step 3: compose the week (deck building).
+- [ ] Step 4: first-run walkthrough.
+- [ ] Step 5: the Sunday card.
+
 ## P2: Jellyfin and Infuse
 
 - [ ] Playback link in the iCloud calendar event.

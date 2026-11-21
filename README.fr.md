@@ -30,6 +30,18 @@ Pour chaque créneau de votre semaine type, par exemple « mercredi 15 h 30, les
 - pour une série, la suite de là où vous en êtes, un ou deux épisodes par soir. Les épisodes très courts,
   comme les dessins animés, sont regroupés.
 
+Rien n'est programmé tant que la famille ne l'a pas choisi. Ce que Calendarr propose est une « Idée »,
+affichée en carte discrète ; « On le garde » ou « On regarde ça » la confirme. Seuls les programmes
+confirmés vont dans le calendrier iCloud et dans la collection Jellyfin.
+
+Les séries ont trois états, réglés dans la page « Séries » : « On la regarde » (ses prochains épisodes
+peuvent être programmés), « Plus tard » (jamais programmée, avec un rappel facultatif dans 1, 3 ou 6 mois
+ou à une date) et « Pas pour nous » (cachée partout). Chaque série a aussi son public (parents, enfants,
+famille). Au premier lancement, les séries déjà commencées dans Jellyfin sont « On la regarde » et les
+autres « Plus tard ». Une série que Sonarr vient de télécharger arrive dans « À classer », que seul
+l'administrateur peut classer ; les comptes Famille peuvent lancer une série « Plus tard » avec « On
+commence ».
+
 « Autre idée » ouvre une liste de propositions pour le créneau : on choisit, ou on tire au hasard. Sur
 chaque carte, « On l'a vu » coche le film ou les épisodes dans Jellyfin, pour le bon membre de la
 famille ; sur un programme à venir, « Déjà vu » écarte le film. Pour un film, la liste des propositions
@@ -259,6 +271,7 @@ Les idées en cours et à venir sont dans [docs/backlog.md](docs/backlog.md) (en
 - `app/clients.py` parle aux API de Radarr, Sonarr et Jellyfin.
 - `app/planner.py` contient les règles qui choisissent quoi regarder.
 - `app/feedback.py` garde en mémoire les choix faits dans « Surprends-moi ».
+- `app/watchstate.py` garde l'état de chaque série (`/config/watchstate.json` ; le supprimer pour repartir de zéro).
 - `app/ics.py` fabrique le calendrier.
 - `app/static/` contient l'interface : HTML, CSS et JavaScript, sans framework, avec la police du système.
 

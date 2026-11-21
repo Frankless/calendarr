@@ -48,6 +48,7 @@
     <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z" fill="currentColor"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 7.5L4.5 12 9 16.5M4.5 12H15a4.5 4.5 0 0 1 0 9h-2"/></symbol>
+    <symbol id="i-series" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="12.5" rx="2"/><path d="M7 4h10M9.5 11.5v4.5l4-2.25z"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9"/></symbol>
   </svg>
 
@@ -61,7 +62,8 @@
         <button data-view="tonight" class="active"><svg><use href="#i-tonight"/></svg>Ce soir</button>
         <button data-view="week"><svg><use href="#i-week"/></svg>Semaine</button>
         <button data-view="surprise"><svg><use href="#i-surprise"/></svg>Surprends-moi</button>
-        <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
+        <button data-view="series"><svg><use href="#i-series"/></svg>Séries<span class="nav-count" id="nav-inbox" hidden></span></button>
+    <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
         <button data-view="settings"><svg><use href="#i-settings"/></svg>Réglages</button>
       </nav>
       <div class="side-bottom">
@@ -126,6 +128,17 @@
           </div>
           <div id="matches"></div>
           <div class="match-pop" id="match-pop" hidden><div><span>♥</span><h2>C'est un match !</h2><p id="match-text"></p></div></div>
+        </section>
+
+        <!-- SÉRIES -->
+        <section id="view-series" class="view" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Séries</h1>
+              <p>Seules les séries « On la regarde » sont programmées. Les autres attendent leur tour.</p>
+            </div>
+          </div>
+          <div id="series"><div class="loading">Un instant…</div></div>
         </section>
 
         <!-- À VENIR -->
@@ -248,6 +261,7 @@
     <button data-view="tonight" class="active"><svg><use href="#i-tonight"/></svg>Ce soir</button>
     <button data-view="week"><svg><use href="#i-week"/></svg>Semaine</button>
     <button data-view="surprise"><svg><use href="#i-surprise"/></svg>Surprise</button>
+    <button data-view="series"><svg><use href="#i-series"/></svg>Séries</button>
     <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
     <button data-view="settings"><svg><use href="#i-settings"/></svg>Réglages</button>
   </nav>
@@ -317,6 +331,25 @@
         <button type="button" class="link quiet" id="alt-close">Fermer</button>
       </div>
     </div>
+  </dialog>
+
+  <!-- Fenêtre : rappel pour une série « Plus tard » -->
+  <dialog id="remind-dialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h2 id="remind-title">Plus tard</h2>
+      <p class="muted">On vous la rappelle quand ?</p>
+      <div class="remind-choices">
+        <button type="button" class="btn secondary" data-remind="+1">Dans 1 mois</button>
+        <button type="button" class="btn secondary" data-remind="+3">Dans 3 mois</button>
+        <button type="button" class="btn secondary" data-remind="+6">Dans 6 mois</button>
+        <button type="button" class="btn secondary" data-remind="none">Pas de rappel</button>
+      </div>
+      <label class="field">Ou une date précise<input type="date" id="remind-date"></label>
+      <div class="dialog-actions">
+        <button class="link quiet" value="cancel">Annuler</button>
+        <button type="button" class="btn" id="remind-ok">Valider la date</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="atv-dialog" class="dialog">

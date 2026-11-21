@@ -64,7 +64,7 @@ function render() {
       <div class="hero-bg" style="${bg}"></div>
       ${cover(it)}
       <div>
-        <p class="wall-kicker">${when(e)} · ${e.start}</p>
+        <p class="wall-kicker">${e.confirmed ? "" : "Idée · "}${when(e)} · ${e.start}</p>
         <h1 class="wall-title">${esc(it.title)}</h1>
         <p class="wall-meta">${esc(AUDIENCE[e.audience] || "")}${e.label ? " · " + esc(e.label) : ""} · ${e.start} – ${e.end}</p>
         <div class="badges"><span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span>${ageLabel(it) ? `<span class="badge">${ageLabel(it)}</span>` : ""}</div>
@@ -75,7 +75,7 @@ function render() {
     <aside class="wall-next">
       <h2>Ensuite</h2>
       ${rest.slice(0, 4).map((x) => `
-        <div class="wall-item">${cover(x.item)}<div><p>${when(x)} · ${x.start}</p><b>${esc(x.item.title)}</b><span>${esc(AUDIENCE[x.audience] || "")}${x.episodes?.length ? " · " + x.episodes[0].code : ""}</span></div></div>`).join("")}
+        <div class="wall-item">${cover(x.item)}<div><p>${x.confirmed ? "" : "Idée · "}${when(x)} · ${x.start}</p><b>${esc(x.item.title)}</b><span>${esc(AUDIENCE[x.audience] || "")}${x.episodes?.length ? " · " + x.episodes[0].code : ""}</span></div></div>`).join("")}
     </aside>`;
 }
 

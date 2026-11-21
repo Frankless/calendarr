@@ -15,7 +15,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, feedback, ics, library, planner, settings
+from . import auth, feedback, ics, library, planner, settings, watchstate
 from .clients import Config, collection_name, jellyfin_set_episodes_played, jellyfin_set_played, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -377,7 +377,7 @@ async def _week_remaining() -> tuple[str, list[str]]:
     first, last = today.isoformat(), (start + timedelta(days=6)).isoformat()
     ids = []
     for e in sorted(entries, key=lambda x: (x["date"], x["start"])):
-        if e.get("item") and first <= e["date"] <= last and not e.get("watched"):
+        if e.get("item") and e.get("confirmed") and first <= e["date"] <= last and not e.get("watched"):
             full = by_uid.get(e["item"]["uid"])
             if full and full.get("jf_id"):
                 ids.append(full["jf_id"])
@@ -460,7 +460,8 @@ async def wall_data(token: str = ""):
     for offset in (0, 7):
         plan = await _decorate(await planner.get_plan(start + timedelta(days=offset), cfg))
         entries += plan["entries"]
-    keep = ("id", "date", "weekday", "start", "end", "duration", "label", "audience", "item", "episodes", "reason", "appletv")
+    keep = ("id", "date", "weekday", "start", "end", "duration", "label", "audience", "item", "episodes", "reason", "appletv",
+            "confirmed")
     entries = [{k: e.get(k) for k in keep} for e in entries if e.get("item") and e["date"] >= today.isoformat()]
     entries.sort(key=lambda e: (e["date"], e["start"]))
     return {"today": today.isoformat(), "entries": entries[:12], "demo": Config.demo()}  # l'état des connexions d'aujourd'hui, pas celui du jour de création
@@ -561,6 +562,77 @@ async def plan_replace(data: dict = Body(...)):
     return await _decorate(plan)
 
 
+@app.post("/api/plan/confirm")
+async def plan_confirm(week: str, entry: str, confirmed: bool = True):
+    """« On le garde » : une idée devient un programme confirmé (ou l'inverse)."""
+    plan = planner.set_confirmed(_week(week), entry, confirmed)
+    if plan is None:
+        _fail("Programme introuvable", 404)
+    return await _decorate(plan)
+
+
+# --------------------------------------------------------------------------- #
+# Séries : On la regarde / Plus tard / Pas pour nous / À classer
+# --------------------------------------------------------------------------- #
+
+@app.get("/api/series")
+async def series_list():
+    items, _ = await library.get()
+    ws = watchstate.load()
+    today = ics.today_local()
+    due = set(watchstate.due_reminders(ws, today))
+    out = []
+    for it in items:
+        if it["kind"] != "serie":
+            continue
+        rec = ws["series"].get(it["uid"], {})
+        nxt = it.get("next_up")
+        out.append(planner._snapshot(it) | {
+            "state": watchstate.state_of(ws, it["uid"], it),
+            "audience": watchstate.audience_of(ws, it["uid"], it),
+            "remind": rec.get("remind"),
+            "due": it["uid"] in due,
+            "next": f"S{nxt['season']:02d}E{nxt['episode']:02d}" if nxt else None,
+            "started": bool(nxt or it.get("played") or it.get("last_played")),
+        })
+    out.sort(key=lambda s: s["title"].lower())
+    return {"series": out, "audiences": settings.AUDIENCES}
+
+
+@app.put("/api/series/{uid}")
+async def series_update(uid: str, request: Request, data: dict = Body(...)):
+    """Administrateur : tout. Famille : seulement lancer une série « Plus tard »."""
+    items, _ = await library.get()
+    item = next((it for it in items if it["uid"] == uid and it["kind"] == "serie"), None)
+    if not item:
+        _fail("Série introuvable", 404)
+    ws = watchstate.load()
+    current = watchstate.state_of(ws, uid, item)
+    state = data.get("state")
+    is_admin = request.state.user["role"] == "admin"
+    if not is_admin:
+        allowed = state == "watching" and current == "later" and set(data) <= {"state"}
+        if not allowed:
+            _fail("Seul un administrateur peut classer les séries.", 403)
+    remind = data.get("remind", False)
+    if remind not in (False, None) and str(remind).startswith("+"):  # "+1", "+3", "+6" mois
+        months = int(str(remind)[1:])
+        t = ics.today_local()
+        m = t.month - 1 + months
+        y, m = t.year + m // 12, m % 12 + 1
+        remind = date(y, m, min(t.day, 28)).isoformat()
+    try:
+        rec = watchstate.update(uid, item["title"], state=state, audience=data.get("audience"), remind=remind)
+    except ValueError as exc:
+        _fail(str(exc))
+    if state == "watching" or state == "never" or "audience" in data:
+        # la semaine prochaine tient compte du changement ; la semaine en cours garde ses programmes confirmés
+        start = planner.week_start(ics.today_local()) + timedelta(days=7)
+        if planner.load_plan(start) and not any(e.get("confirmed") for e in planner.load_plan(start)["entries"]):
+            await planner.regenerate(start, settings.load())
+    return {"uid": uid, "state": rec["state"], "audience": rec["audience"], "remind": rec.get("remind")}
+
+
 @app.post("/api/plan/swap")
 async def swap(week: str, entry: str):
     return await _decorate(await planner.swap(_week(week), entry, settings.load()))
@@ -628,6 +700,10 @@ async def swipe(request: Request, data: dict = Body(...)):
     row = feedback.record(user["id"], uid, decision, key)
     out = {"decision": decision, "title": item["title"], "match": False, "placed": None, "jellyfin": False}
 
+    if decision == "yes" and item["kind"] == "serie":
+        ws = watchstate.load()
+        if watchstate.state_of(ws, uid, item) in ("later", "watching"):
+            watchstate.update(uid, item["title"], state="watching")
     if decision == "yes":
         audience = planner.DECKS[key]["audience"]
         if key == "nous":
@@ -681,7 +757,18 @@ async def surprise():
 async def upcoming():
     today = ics.today_local()
     items = await library.upcoming(today, days=21)
-    return [u for u in items if u.get("date", "") >= today.isoformat()]
+    ws = watchstate.load()
+    out = []
+    for u in items:
+        if u.get("date", "") < today.isoformat():
+            continue
+        state = watchstate.state_of(ws, u["series_uid"]) if u.get("series_uid") else None
+        if state == "never":
+            continue
+        out.append(u | {"state": state})
+    # le même jour : les séries qu'on regarde d'abord
+    out.sort(key=lambda u: (u["date"], 0 if u.get("state") == "watching" else 1, u["title"]))
+    return out
 
 
 @app.get("/calendar.ics")
@@ -697,6 +784,7 @@ async def calendar(token: str = ""):
         plans.append(past)
     for offset in (0, 7):
         plans.append(await planner.get_plan(this_week + timedelta(days=offset), cfg))
+    plans = [p | {"entries": [e for e in p["entries"] if e.get("confirmed")]} for p in plans]
     body = ics.build(plans, cfg.get("reminder_minutes", 15))
     return Response(
         body,

@@ -122,6 +122,7 @@ function show(view) {
   if (view !== "tonight") releaseWakeLock();
   if (view === "surprise") loadDeck();
   if (view === "upcoming") loadUpcoming();
+  if (view === "series") { if (state.series) renderSeries(); loadSeries(); }
   if (view === "settings") loadSettings();
   history.replaceState(null, "", `#${view}`);
   window.scrollTo({ top: 0 });
@@ -311,15 +312,33 @@ async function markSeen(btn) {
 function cardActions(e) {
   const today = state.status?.today || iso(new Date());
   if (e.date < today || e.watched) return seenButton(e, "mini seen-btn");
-  return `${watchButton(e, "mini play")}
+  const main = e.confirmed
+    ? watchButton(e, "mini play")
+    : `<button class="mini keep" data-confirm="${e.id}" data-week="${weekOf(e.date)}" title="Ajouter au programme (et au calendrier)">${icon("check")}On le garde</button>`;
+  return `${main}
     <div class="card-menu">
       <button class="mini more" data-menu aria-label="Plus d'actions" aria-haspopup="true">${icon("more")}</button>
       <div class="menu" role="menu">
         <button data-swap="${e.id}" role="menuitem">${icon("swap")}Autre idée</button>
         ${seenButton(e, "")}
+        ${e.confirmed ? `<button data-unconfirm="${e.id}" data-week="${weekOf(e.date)}" role="menuitem">${icon("swap")}Remettre en idée</button>` : ""}
         <button class="danger" data-remove="${e.id}" role="menuitem">${icon("x")}Pas cette fois</button>
       </div>
     </div>`;
+}
+
+async function setConfirmed(btn, confirmed) {
+  btn.disabled = true;
+  try {
+    const id = btn.dataset.confirm || btn.dataset.unconfirm;
+    const res = await api(`/api/plan/confirm?week=${btn.dataset.week}&entry=${id}&confirmed=${confirmed}`, { method: "POST" });
+    toast(confirmed ? "C'est au programme (et dans le calendrier)." : "C'est redevenu une idée.");
+    return res;
+  } catch (err) {
+    toast("Oups : " + err.message);
+    btn.disabled = false;
+    return null;
+  }
 }
 
 function renderEntry(e) {
@@ -331,11 +350,12 @@ function renderEntry(e) {
       <div class="prog-actions"><button class="mini" data-swap="${e.id}">${icon("swap")}Réessayer</button></div></div></div>`;
   }
   const eps = (e.episodes || []).map((ep) => `<li title="${esc(ep.name)}"><b>${ep.code}</b>${ep.name ? " · " + esc(ep.name) : ""}</li>`).join("");
-  return `<div class="prog ${e.audience}${e.watched ? " watched" : ""}">
+  return `<div class="prog ${e.audience}${e.watched ? " watched" : ""}${e.confirmed ? "" : " idea"}">
     <div class="prog-time"><b>${e.start}</b><span>${e.end}</span></div>
     ${cover(it, { type: true })}
     <div class="prog-body">
       <div class="prog-top">
+        ${e.confirmed ? "" : `<span class="badge idea-tag">Idée</span>`}
         <span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span>
         ${e.label ? `<span>${esc(e.label)}</span>` : ""}
       </div>
@@ -349,6 +369,12 @@ function renderEntry(e) {
 }
 
 $("#week").addEventListener("click", async (ev) => {
+  const conf = ev.target.closest("[data-confirm], [data-unconfirm]");
+  if (conf) {
+    const res = await setConfirmed(conf, !!conf.dataset.confirm);
+    if (res && res.week === state.week) { state.plan = res; renderWeek(); }
+    return;
+  }
   const menuBtn = ev.target.closest("[data-menu]");
   if (menuBtn) {
     ev.stopPropagation();
@@ -411,6 +437,7 @@ const nowHHMM = () => { const n = new Date(); return `${String(n.getHours()).pad
 const weekOf = (isoDate) => addDays(isoDate, -((parse(isoDate).getDay() + 6) % 7));
 
 async function loadTonight() {
+  if (!state.series) await loadSeries();
   const today = state.status?.today || iso(new Date());
   const thisWeek = weekOf(today);
   try {
@@ -453,16 +480,17 @@ function renderTonight() {
   }
   const [e, ...rest] = list;
   const it = e.item;
+  const idea = !e.confirmed;
   const bg = it.poster ? `background-image:url('${esc(it.poster)}')` : `background:${fakeBg(it)}`;
   const eps = (e.episodes || []).map((ep) => `<li><b>${ep.code}</b>${ep.name ? " · " + esc(ep.name) : ""}</li>`).join("");
   const later = rest.slice(0, 3);
   el.innerHTML = `
-    <section class="hero big">
+    <section class="hero big${idea ? " idea" : ""}">
       <div class="hero-bg" style="${bg}"></div>
       <div class="hero-inner">
         ${cover(it)}
         <div class="hero-text">
-          <p class="kicker">${whenLabel(e)} · ${e.start} – ${e.end}</p>
+          <p class="kicker">${idea ? `Une idée pour ${whenLabel(e).toLowerCase()} ? · ${e.start}` : `${whenLabel(e)} · ${e.start} – ${e.end}`}</p>
           <div class="badges"><span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span><span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span>${ageLabel(it) ? `<span class="badge">${ageLabel(it)}</span>` : ""}</div>
           <h1>${esc(it.title)}</h1>
           <p class="meta">${esc(metaLine(it, { age: false }))}</p>
@@ -470,7 +498,7 @@ function renderTonight() {
           ${e.reason ? `<p class="reason">${esc(e.reason)}</p>` : ""}
           ${it.overview ? `<p class="overview">${esc(it.overview)}</p>` : ""}
           <div class="hero-actions">
-            ${watchButton(e, "btn big")}
+            ${idea ? `<button class="btn big" data-confirm="${e.id}" data-week="${weekOf(e.date)}">${icon("check")}On regarde ça</button>` : watchButton(e, "btn big")}
             <button class="link" data-t-swap="${e.id}" data-week="${weekOf(e.date)}">Autre idée${icon("right")}</button>
             <button class="link quiet" data-t-skip="${e.id}" data-week="${weekOf(e.date)}">Pas ce soir</button>
             ${seenButton(e, "link quiet")}
@@ -483,12 +511,13 @@ function renderTonight() {
       <div class="later-card ${x.audience}">
         ${cover(x.item)}
         <div>
-          <p class="kicker">${whenLabel(x)} · ${x.start}</p>
+          <p class="kicker">${x.confirmed ? "" : "Idée · "}${whenLabel(x)} · ${x.start}</p>
           <b>${esc(x.item.title)}</b>
           <span class="meta">${esc(AUDIENCE[x.audience])}${x.episodes?.length ? " · " + x.episodes[0].code : ""}</span>
         </div>
       </div>`).join("")}</div>` : ""}
 `;
+  renderSeriesNotices(el);
   if ("wakeLock" in navigator) {
     el.insertAdjacentHTML("afterbegin", `<div class="tonight-tools"><button class="mini wake" id="wake">${icon("sun")}<span>Garder l'écran allumé</span></button></div>`);
   }
@@ -496,6 +525,11 @@ function renderTonight() {
 }
 
 $("#tonight").addEventListener("click", async (ev) => {
+  const conf = ev.target.closest("[data-confirm]");
+  if (conf) {
+    if (await setConfirmed(conf, true)) { state.plan = null; await loadTonight(); }
+    return;
+  }
   const seen = ev.target.closest("[data-seen]");
   if (seen) {
     if (await markSeen(seen)) { state.plan = null; await loadTonight(); }
@@ -768,6 +802,142 @@ $("#pick-dialog").addEventListener("close", async () => {
   }
 });
 
+/* ---------- Séries ---------- */
+const SERIES_STATES = { watching: "On la regarde", later: "Plus tard", never: "Pas pour nous", inbox: "À classer" };
+state.series = null;
+
+async function loadSeries() {
+  try {
+    const res = await api("/api/series");
+    state.series = res.series;
+    updateInboxCount();
+    if (!$("#view-series").hidden) renderSeries();
+  } catch (err) {
+    $("#series").innerHTML = `<div class="loading">${esc(err.message)}</div>`;
+  }
+}
+
+function updateInboxCount() {
+  const n = (state.series || []).filter((s) => s.state === "inbox").length;
+  const b = $("#nav-inbox");
+  if (b) { b.textContent = n; b.hidden = !n || !isAdmin(); }
+}
+
+function fmtDate(isoDate) {
+  const d = parse(isoDate);
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function seriesCard(s) {
+  const admin = isAdmin();
+  const aud = admin
+    ? `<select data-aud="${esc(s.uid)}" aria-label="Pour qui">${Object.entries(AUDIENCE).map(([k, v]) => `<option value="${k}" ${k === s.audience ? "selected" : ""}>${v}</option>`).join("")}</select>`
+    : `<span class="badge ${s.audience}">${AUDIENCE[s.audience]}</span>`;
+  let info = s.next ? `Vous en êtes à ${s.next}` : s.started ? "Commencée" : "Jamais commencée";
+  if (s.state === "later" && s.remind) info += ` · rappel le ${fmtDate(s.remind)}`;
+  let actions = "";
+  if (s.state === "inbox") {
+    actions = admin
+      ? `<button class="mini play" data-state="watching" data-uid="${esc(s.uid)}">On la regarde</button>
+         <button class="mini" data-later="${esc(s.uid)}">Plus tard</button>
+         <button class="mini danger" data-state="never" data-uid="${esc(s.uid)}">Pas pour nous</button>`
+      : `<span class="muted small">Un administrateur va la classer.</span>`;
+  } else if (s.state === "later") {
+    actions = `<button class="mini play" data-state="watching" data-uid="${esc(s.uid)}">On commence</button>` +
+      (admin ? `<button class="mini" data-later="${esc(s.uid)}">Rappel…</button>
+                <button class="mini danger" data-state="never" data-uid="${esc(s.uid)}">Pas pour nous</button>` : "");
+  } else if (s.state === "watching") {
+    actions = admin ? `<button class="mini" data-later="${esc(s.uid)}">Plus tard</button>
+                       <button class="mini danger" data-state="never" data-uid="${esc(s.uid)}">Pas pour nous</button>` : "";
+  } else if (s.state === "never" && admin) {
+    actions = `<button class="mini" data-state="later" data-uid="${esc(s.uid)}">Remettre en « Plus tard »</button>`;
+  }
+  return `<div class="serie-card${s.due ? " due" : ""}">
+    ${cover(s)}
+    <div class="serie-body">
+      <b>${esc(s.title)}</b>
+      <span class="meta">${esc(info)}</span>
+      <div class="serie-row">${aud}</div>
+      <div class="serie-actions">${actions}</div>
+    </div>
+  </div>`;
+}
+
+function renderSeries() {
+  const all = state.series || [];
+  const by = (st) => all.filter((s) => s.state === st);
+  const due = all.filter((s) => s.due);
+  const section = (title, list, hint = "") => list.length
+    ? `<section class="serie-section"><div class="later-head"><h2>${title} <span class="muted">${list.length}</span></h2></div>${hint ? `<p class="muted small">${hint}</p>` : ""}<div class="serie-grid">${list.map(seriesCard).join("")}</div></section>`
+    : "";
+  const never = by("never");
+  $("#series").innerHTML = (all.length ? "" : `<p class="muted">Aucune série dans la bibliothèque pour l'instant.</p>`) +
+    section("À classer", by("inbox"), "Nouvelles séries téléchargées. Rien n'est programmé tant qu'elles ne sont pas classées.") +
+    section("C'est le moment ?", due, "Vous aviez demandé un rappel pour ces séries.") +
+    section("On la regarde", by("watching"), "Leurs prochains épisodes sont programmés, pour le public choisi.") +
+    section("Plus tard", by("later").filter((s) => !s.due)) +
+    (never.length ? `<details class="past-days"><summary>Pas pour nous <span class="muted">${never.length}</span></summary><div class="serie-grid pad">${never.map(seriesCard).join("")}</div></details>` : "");
+}
+
+async function setSeries(uid, body, msg) {
+  try {
+    const r = await api(`/api/series/${encodeURIComponent(uid)}`, { method: "PUT", body: JSON.stringify(body) });
+    const s = state.series.find((x) => x.uid === uid);
+    if (s) { s.state = r.state; s.audience = r.audience; s.remind = r.remind; s.due = false; }
+    toast(msg || "C'est noté.");
+    updateInboxCount();
+    renderSeries();
+    state.plan = null;
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+$("#series").addEventListener("click", (ev) => {
+  const st = ev.target.closest("[data-state]");
+  const later = ev.target.closest("[data-later]");
+  if (st) {
+    const s = state.series.find((x) => x.uid === st.dataset.uid);
+    const msgs = { watching: `« ${s.title} » : on la regarde. Ses épisodes seront programmés.`, never: `« ${s.title} » n'apparaîtra plus.`, later: `« ${s.title} » attend son tour.` };
+    setSeries(st.dataset.uid, { state: st.dataset.state }, msgs[st.dataset.state]);
+  } else if (later) {
+    const s = state.series.find((x) => x.uid === later.dataset.later);
+    state.remindFor = s;
+    $("#remind-title").textContent = `« ${s.title} » : plus tard`;
+    $("#remind-date").value = s.remind || "";
+    $("#remind-dialog").showModal();
+  }
+});
+$("#series").addEventListener("change", (ev) => {
+  const sel = ev.target.closest("[data-aud]");
+  if (sel) setSeries(sel.dataset.aud, { audience: sel.value }, `Public : ${AUDIENCE[sel.value].toLowerCase()}.`);
+});
+$("#remind-dialog").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-remind]");
+  if (!b || !state.remindFor) return;
+  const v = b.dataset.remind;
+  $("#remind-dialog").close();
+  setSeries(state.remindFor.uid, { state: "later", remind: v === "none" ? null : v },
+    v === "none" ? "Plus tard, sans rappel." : `Plus tard : rappel dans ${v.slice(1)} mois.`);
+});
+$("#remind-ok").onclick = () => {
+  const v = $("#remind-date").value;
+  if (!v || !state.remindFor) { toast("Choisissez une date."); return; }
+  $("#remind-dialog").close();
+  setSeries(state.remindFor.uid, { state: "later", remind: v }, `Plus tard : rappel le ${fmtDate(v)}.`);
+};
+
+/* Sur Ce soir : séries à classer (administrateur) et rappels arrivés */
+function renderSeriesNotices(el) {
+  const all = state.series || [];
+  const inbox = isAdmin() ? all.filter((s) => s.state === "inbox") : [];
+  const due = all.filter((s) => s.due);
+  const notes = [];
+  if (inbox.length) notes.push(`<button class="notice" data-goto="series">${icon("series")}<span>${inbox.length === 1 ? `Nouvelle série à classer : « ${esc(inbox[0].title)} »` : `${inbox.length} nouvelles séries à classer`}</span>${icon("right")}</button>`);
+  for (const s of due.slice(0, 2)) notes.push(`<button class="notice" data-goto="series">${icon("upcoming")}<span>Rappel : et si on commençait « ${esc(s.title)} » ?</span>${icon("right")}</button>`);
+  if (notes.length) el.insertAdjacentHTML("afterbegin", `<div class="notices">${notes.join("")}</div>`);
+}
+
 /* ---------- à venir ---------- */
 async function loadUpcoming() {
   $("#upcoming").innerHTML = `<div class="loading">Chargement…</div>`;
@@ -781,7 +951,7 @@ async function loadUpcoming() {
   $("#upcoming").innerHTML = Object.entries(groups).map(([date, items]) => {
     const d = parse(date);
     return `<div><div class="day-head"><span>${dayName(date)} ${d.getDate()} ${MONTHS[d.getMonth()]}</span></div>
-      <div class="up-list">${items.map((u) => `<div class="up-item">${cover(u)}<div class="txt"><strong>${esc(u.title)}</strong><span class="meta">${esc(u.detail)}</span></div>
+      <div class="up-list">${items.map((u) => `<div class="up-item">${cover(u)}<div class="txt"><strong>${esc(u.title)}${u.state === "watching" ? ` <span class="badge idea-tag">On la regarde</span>` : ""}</strong><span class="meta">${esc(u.detail)}</span></div>
       <span class="badge ${u.available ? "ok" : ""}">${u.available ? "Prêt à regarder" : `Sort le ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`}</span></div>`).join("")}</div>
     </div>`;
   }).join("");
@@ -1180,7 +1350,7 @@ async function startApp() {
     state.status = null;
   }
   const view = location.hash.slice(1);
-  show(["week", "surprise", "upcoming", "settings"].includes(view) ? view : "tonight");
+  show(["week", "surprise", "series", "upcoming", "settings"].includes(view) ? view : "tonight");
   if (view === "week") await loadWeek();
   else loadWeek();
 }

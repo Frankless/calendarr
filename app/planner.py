@@ -17,7 +17,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import feedback, library
+from . import feedback, library, watchstate
 from .settings import CONFIG_DIR, DAYS
 
 PLANS_DIR = CONFIG_DIR / "plans"
@@ -109,6 +109,11 @@ def _days_since(iso: str | None, today: date) -> int | None:
         return None
 
 
+def series_fits_audience(series_aud: str, slot_aud: str) -> bool:
+    """Une série « famille » convient à tous les créneaux ; sinon, même public."""
+    return series_aud == "famille" or series_aud == slot_aud
+
+
 def score(item, slot, settings, ctx) -> tuple[float, str] | None:
     """Renvoie (score, raison) ou None si l'élément est à écarter."""
     item = library.view(item, slot.get("audience", "adultes"))
@@ -122,6 +127,16 @@ def score(item, slot, settings, ctx) -> tuple[float, str] | None:
 
     fb = ctx.get("fb") or {}
     uid = item["uid"]
+    ws = ctx.get("ws")
+    if ws is not None and item["kind"] == "serie":
+        state = watchstate.state_of(ws, uid, item)
+        if state == "never" or state == "inbox":
+            return None  # pas pour nous, ou pas encore classée
+        if ctx.get("planning"):
+            if state != "watching":
+                return None  # « Plus tard » : jamais programmée
+            if not series_fits_audience(watchstate.audience_of(ws, uid, item), slot.get("audience", "adultes")):
+                return None
     if uid in fb.get("no", ()):
         return None  # quelqu'un a dit « pas pour nous »
     if uid in fb.get("seen", ()) and item["kind"] == "film" and not kids_slot:
@@ -229,6 +244,7 @@ def _entry(day: date, slot: dict, item: dict | None, reason: str, settings: dict
         "item": _snapshot(item) if item else None,
         "episodes": [],
         "reason": reason if item else "Rien ne correspond dans la bibliothèque : soirée libre !",
+        "confirmed": False,
     }
 
 
@@ -245,6 +261,8 @@ async def build_week(start: date, settings: dict, salt: str = "") -> dict:
         "used": set(),
         "new_episodes": {u.get("series_uid") for u in upcoming if u.get("kind") == "serie"},
         "fb": feedback.summary(),
+        "ws": watchstate.load(),
+        "planning": True,
     }
     # Les créneaux les plus exigeants (enfants, puis famille) choisissent en
     # premier, pour que la soirée des parents ne prenne pas le seul dessin animé.
@@ -393,6 +411,8 @@ async def swap(start: date, entry_id: str, settings: dict) -> dict:
         "used": used | skipped,
         "new_episodes": {u.get("series_uid") for u in upcoming if u.get("kind") == "serie"},
         "fb": feedback.summary(),
+        "ws": watchstate.load(),
+        "planning": True,
     }
     candidates = [it for it in items if it["uid"] not in skipped]
     best = _pick(candidates, slot, settings, ctx)
@@ -421,6 +441,7 @@ async def add_entry(day: date, start_time: str, uid: str, audience: str, setting
     slot = {"start": start_time, "max_minutes": max(int(item.get("runtime") or 60), 30),
             "audience": audience, "kind": item["kind"], "label": "Surprise !"}
     entry = _entry(day, slot, item, "Choisi sur les étagères", settings)
+    entry["confirmed"] = True
     plan["entries"].append(entry)
     plan["entries"].sort(key=lambda e: (e["date"], e["start"]))
     await fill_episodes(plan, items, settings)
@@ -443,7 +464,8 @@ def remove_entry(start: date, entry_id: str) -> dict | None:
 async def shelves(settings: dict) -> list[dict]:
     items, _ = await library.get()
     rng = random.Random()
-    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set(), "fb": feedback.summary()}
+    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set(), "fb": feedback.summary(),
+           "ws": watchstate.load()}
     defs = [
         ("moi", "Pour moi", "Une série ou un docu, à son rythme",
          {"audience": "adultes", "kind": "any", "max_minutes": 600}, lambda it: it["kind"] == "serie" or is_doc(it)),
@@ -499,7 +521,8 @@ async def deck(key: str, user_id: str, settings: dict, size: int = 20) -> list[d
     fb = feedback.summary()
     mine = fb["by_user"].get(user_id, {})
     rng = random.Random()
-    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set(), "fb": fb}
+    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set(), "fb": fb,
+           "ws": watchstate.load()}
     scored = []
     for it in items:
         decided = mine.get(it["uid"])
@@ -561,6 +584,7 @@ async def place(uid: str, audience: str, settings: dict, reason: str, days: int 
                     "kind": e["slot_kind"], "label": e["label"]}
             new = _entry(date.fromisoformat(e["date"]), slot, item, reason, settings)
             new["id"] = e["id"]
+            new["confirmed"] = True
             plan["entries"] = [new if x["id"] == e["id"] else x for x in plan["entries"]]
             await fill_episodes(plan, items, settings)
             save_plan(plan)
@@ -621,7 +645,7 @@ async def alternatives(start: date, entry_id: str, settings: dict, n: int = 6) -
     used = {e["item"]["uid"] for e in plan["entries"] if e.get("item") and e["id"] != entry_id}
     slot = _slot_of(target)
     ctx = {"today": date.today(), "rng": random.Random(), "used": used | ({current} if current else set()),
-           "new_episodes": set(), "fb": feedback.summary()}
+           "new_episodes": set(), "fb": feedback.summary(), "ws": watchstate.load(), "planning": True}
     scored = []
     for it in items:
         if it["uid"] == current or it["uid"] in skipped or not fits(it, slot, settings):
@@ -647,7 +671,20 @@ async def replace(start: date, entry_id: str, uid: str, settings: dict) -> dict:
         return plan
     new = _entry(date.fromisoformat(target["date"]), _slot_of(target), item, "Choisi par vous", settings)
     new["id"] = target["id"]
+    new["confirmed"] = True
     plan["entries"] = [new if e["id"] == entry_id else e for e in plan["entries"]]
     await fill_episodes(plan, items, settings)
+    save_plan(plan)
+    return plan
+
+
+def set_confirmed(start: date, entry_id: str, confirmed: bool) -> dict | None:
+    """« On le garde » : un programme proposé devient confirmé (ou redevient une idée)."""
+    plan = load_plan(start)
+    if not plan:
+        return None
+    for e in plan["entries"]:
+        if e["id"] == entry_id and e.get("item"):
+            e["confirmed"] = confirmed
     save_plan(plan)
     return plan

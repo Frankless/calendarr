@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import clients, demo
+from . import clients, demo, watchstate
 from .clients import Config
 
 log = logging.getLogger("calendarr")
@@ -24,6 +24,10 @@ async def get(force: bool = False) -> tuple[list[dict], list[str]]:
         if not force and _cache["items"] and time.time() - _cache["at"] < CACHE_SECONDS:
             return _cache["items"], _cache["warnings"]
         items, warnings = await _load()
+        try:
+            watchstate.sync(items)
+        except Exception as exc:  # noqa: BLE001 - le suivi ne doit jamais bloquer l'app
+            log.warning("Suivi des séries indisponible : %s", exc)
         _cache.update(at=time.time(), items=items, warnings=warnings)
         if force:
             clear_caches()
