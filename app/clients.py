@@ -240,6 +240,7 @@ async def sonarr_series(client: httpx.AsyncClient) -> list[dict]:
                 "overview": s.get("overview") or "",
                 "poster": _poster(s.get("images")),
                 "tvdb": str(s.get("tvdbId") or ""),
+                "tmdb": str(s.get("tmdbId") or ""),
                 "episodes_available": stats.get("episodeFileCount", 0),
                 "added": s.get("added"),
             }
@@ -328,6 +329,49 @@ async def jellyfin_users() -> list[str]:
     async with httpx.AsyncClient() as client:
         users = await _get(client, f"{Config.jellyfin_url}/Users", headers=_jf_headers())
     return [u.get("Name") for u in users if u.get("Name")]
+
+
+COLLECTION_NAME = "Calendarr · Cette semaine"
+
+
+async def jellyfin_sync_collection(item_ids: list[str]) -> str:
+    """Crée ou met à jour la collection Jellyfin avec les titres de la semaine.
+    Renvoie un court message (pour les journaux)."""
+    if not Config.jellyfin():
+        return "Jellyfin non branché"
+    wanted = [i for i in dict.fromkeys(item_ids) if i]
+    async with httpx.AsyncClient() as client:
+        uid = await jellyfin_user_id(client)
+        found = await _get(
+            client, f"{Config.jellyfin_url}/Users/{uid}/Items", headers=_jf_headers(),
+            params={"IncludeItemTypes": "BoxSet", "Recursive": "true", "SearchTerm": "Calendarr"},
+        )
+        coll = next((c for c in found.get("Items", []) if c.get("Name") == COLLECTION_NAME), None)
+        if not coll:
+            if not wanted:
+                return "rien à ajouter"
+            r = await client.post(
+                f"{Config.jellyfin_url}/Collections", headers=_jf_headers(), timeout=TIMEOUT,
+                params={"Name": COLLECTION_NAME, "Ids": ",".join(wanted)},
+            )
+            r.raise_for_status()
+            return f"collection créée ({len(wanted)} titre{'s' if len(wanted) > 1 else ''})"
+        children = await _get(
+            client, f"{Config.jellyfin_url}/Users/{uid}/Items", headers=_jf_headers(),
+            params={"ParentId": coll["Id"], "EnableImages": "false"},
+        )
+        current = {c["Id"] for c in children.get("Items", [])}
+        to_add = [i for i in wanted if i not in current]
+        to_remove = [i for i in current if i not in set(wanted)]
+        if to_add:
+            r = await client.post(f"{Config.jellyfin_url}/Collections/{coll['Id']}/Items",
+                                  headers=_jf_headers(), params={"Ids": ",".join(to_add)}, timeout=TIMEOUT)
+            r.raise_for_status()
+        if to_remove:
+            r = await client.delete(f"{Config.jellyfin_url}/Collections/{coll['Id']}/Items",
+                                    headers=_jf_headers(), params={"Ids": ",".join(to_remove)}, timeout=TIMEOUT)
+            r.raise_for_status()
+        return f"collection à jour ({len(wanted)} titre{'s' if len(wanted) > 1 else ''})"
 
 
 def _parse_dt(value: str | None) -> str | None:

@@ -584,3 +584,12 @@ body { padding-top: env(safe-area-inset-top); }
   .prog .cover { width: 64px; }
   .prog-actions .mini { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ---------- Regarder / écran de cuisine ---------- */
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--gray-300); cursor: pointer; }
+.check input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--indigo-500); }
+.wall-link { margin-top: 10px; padding: 14px 16px; border-radius: 10px; background: var(--gray-800); box-shadow: 0 0 0 1px var(--gray-700); display: flex; flex-direction: column; gap: 10px; }
+.wall-link b { color: var(--white); }
+.wall-link .hint { margin: 0; }
+.wall-link .conn-actions { justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
+a.mini { text-decoration: none; }

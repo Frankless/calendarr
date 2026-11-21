@@ -149,6 +149,22 @@
                 </form>
               </div>
             </div>
+            <div class="set-section admin-only" id="watching">
+              <div class="set-title"><h2>Regarder</h2><p>Ce que fait le bouton ▶ Regarder, et l'écran de cuisine.</p></div>
+              <div class="set-fields">
+                <label class="field">Comment regardez-vous ?<select id="s-player"></select></label>
+                <p class="hint" id="player-hint"></p>
+                <label class="check"><input type="checkbox" id="s-sync"> <span>Tenir à jour dans Jellyfin une collection <b id="coll-name"></b> avec les titres de la semaine (Infuse l'affiche avec vos collections)</span></label>
+                <div><button type="button" class="mini" id="sync-now">Mettre à jour la collection maintenant</button></div>
+                <div class="wall-link">
+                  <b>Écran de cuisine</b>
+                  <p class="hint">Un lien à ouvrir sur une tablette murale, un écran d'assistant ou une télé : il affiche l'heure et le programme, sans connexion ni bouton, et se met à jour tout seul. Ne le partagez qu'avec la maison.</p>
+                  <div class="copyrow"><input id="wall-url" readonly><button type="button" class="btn small secondary" id="copy-wall">Copier</button></div>
+                  <div class="conn-actions"><a class="mini" id="open-wall" href="#" target="_blank" rel="noopener">Ouvrir l'écran</a><button type="button" class="mini danger" id="reset-wall">Nouveau lien (l'ancien ne marchera plus)</button></div>
+                </div>
+              </div>
+            </div>
+
             <div class="set-section admin-only" id="connections">
               <div class="set-title"><h2>Connexions</h2><p>L'adresse de chaque service (celle que vous tapez dans le navigateur) et sa clé API. Si tout tourne sur le même NAS, mettez l'adresse IP du NAS, pas « localhost ».</p></div>
               <div class="services">
@@ -267,6 +283,20 @@
           <button class="btn" value="ok" id="pick-ok"><svg><use href="#i-check"/></svg>Programmer</button>
         </div>
       </div>
+    </form>
+  </dialog>
+
+  <!-- Fenêtre : regarder sur l'Apple TV -->
+  <dialog id="atv-dialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h2 id="atv-title"></h2>
+      <p class="muted">Sur l'Apple TV :</p>
+      <ol>
+        <li>Ouvrez <b>Infuse</b>.</li>
+        <li>Allez dans <b id="atv-where"></b>.</li>
+        <li id="atv-ep-row">Lancez l'épisode <b id="atv-ep"></b>.</li>
+      </ol>
+      <div class="dialog-actions"><button class="btn">C'est parti</button></div>
     </form>
   </dialog>
 

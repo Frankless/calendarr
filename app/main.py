@@ -3,6 +3,7 @@ Radarr, Sonarr et Jellyfin."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, ics, library, planner, settings
-from .clients import Config, check_connections, jellyfin_users
+from .clients import COLLECTION_NAME, Config, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -23,12 +24,14 @@ app = FastAPI(title="Calendarr", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 # Routes accessibles sans être connecté
-PUBLIC_PATHS = {"/", "/health", "/calendar.ics", "/sw.js", "/manifest.webmanifest", "/api/auth/state", "/api/auth/login", "/api/auth/setup", "/api/auth/logout"}
+PUBLIC_PATHS = {"/", "/health", "/calendar.ics", "/sw.js", "/manifest.webmanifest", "/mur", "/api/wall", "/api/auth/state", "/api/auth/login", "/api/auth/setup", "/api/auth/logout"}
 # Routes réservées aux administrateurs
 ADMIN_ROUTES = {
     ("GET", "/api/connections"), ("PUT", "/api/connections"),
     ("GET", "/api/jellyfin/users"),
     ("GET", "/api/settings"), ("PUT", "/api/settings"),
+    ("GET", "/api/wall-link"), ("POST", "/api/wall-link/reset"),
+    ("POST", "/api/collection/sync"),
 }
 
 
@@ -256,6 +259,8 @@ async def get_settings():
         "days": settings.DAYS,
         "audiences": settings.AUDIENCES,
         "kinds": settings.KINDS,
+        "players": settings.PLAYERS,
+        "collection_name": COLLECTION_NAME,
         "genres": genres,
     }
 
@@ -276,6 +281,9 @@ async def _decorate(plan: dict) -> dict:
     l'âge conseillé et l'état des connexions (pas enregistrés dans le plan)."""
     items, warnings = await library.get()
     by_uid = {it["uid"]: it for it in items}
+    cfg = settings.load()
+    player = cfg.get("player", "jellyfin")
+    sync = cfg.get("sync_collection") and Config.jellyfin()
     entries = []
     for e in plan["entries"]:
         e = dict(e)
@@ -287,9 +295,140 @@ async def _decorate(plan: dict) -> dict:
             nxt = full.get("next_up")
             if nxt and e.get("episodes") and e["episodes"][0]["code"] == f"S{nxt['season']:02d}E{nxt['episode']:02d}":
                 jf_id = nxt.get("jf_id") or jf_id  # ouvrir directement le bon épisode
-            e["watch_url"] = Config.watch_url(jf_id)
+            e |= _watch(full, e, jf_id, player)
         entries.append(e)
-    return plan | {"entries": entries, "warnings": warnings}  # l'état des connexions d'aujourd'hui, pas celui du jour de création
+    if sync:
+        _schedule_sync()
+    return plan | {"entries": entries, "warnings": warnings, "player": player}
+
+
+def _watch(full: dict, e: dict, jf_id: str | None, player: str) -> dict:
+    """Comment lancer ce programme, selon la façon dont la famille regarde."""
+    if player == "appletv":
+        ep = e["episodes"][0]["code"] if e.get("episodes") else ""
+        where = f"Infuse → collection « {COLLECTION_NAME} »" if settings.load().get("sync_collection") else "Infuse → Films" if full["kind"] == "film" else "Infuse → Séries"
+        return {"appletv": {"where": where, "title": full["title"], "episode": ep}}
+    if player == "infuse":
+        tmdb = full.get("tmdb")
+        if not tmdb or str(tmdb).startswith("demo"):
+            return {}
+        if full["kind"] == "film":
+            return {"watch_url": f"infuse://movie/{tmdb}"}
+        if e.get("episodes"):
+            code = e["episodes"][0]["code"]  # S02E03
+            season, episode = int(code[1:3]), int(code[4:6])
+            return {"watch_url": f"infuse://series/{tmdb}-{season}-{episode}"}
+        return {"watch_url": f"infuse://series/{tmdb}"}
+    return {"watch_url": Config.watch_url(jf_id)}
+
+
+# --------------------------------------------------------------------------- #
+# Collection Jellyfin « Calendarr · Cette semaine » (pour Infuse sur l'Apple TV)
+# --------------------------------------------------------------------------- #
+
+_sync_state = {"last": None, "task": None, "message": ""}
+
+
+async def _next_days_jf_ids() -> list[str]:
+    """Identifiants Jellyfin des titres prévus aujourd'hui et les 6 jours suivants."""
+    cfg = settings.load()
+    today = ics.today_local()
+    start = planner.week_start(today)
+    entries = []
+    for offset in (0, 7):
+        entries += (await planner.get_plan(start + timedelta(days=offset), cfg))["entries"]
+    items, _ = await library.get()
+    by_uid = {it["uid"]: it for it in items}
+    first, last = today.isoformat(), (today + timedelta(days=6)).isoformat()
+    ids = []
+    for e in sorted(entries, key=lambda x: (x["date"], x["start"])):
+        if e.get("item") and first <= e["date"] <= last:
+            full = by_uid.get(e["item"]["uid"])
+            if full and full.get("jf_id"):
+                ids.append(full["jf_id"])
+    return ids
+
+
+def _schedule_sync() -> None:
+    """Met la collection à jour en arrière-plan, seulement si la liste a changé."""
+    async def run():
+        try:
+            ids = await _next_days_jf_ids()
+            if ids == _sync_state["last"]:
+                return
+            _sync_state["message"] = await jellyfin_sync_collection(ids)
+            _sync_state["last"] = ids
+            logging.info("Collection Jellyfin : %s", _sync_state["message"])
+        except Exception as exc:  # noqa: BLE001
+            _sync_state["message"] = f"échec : {exc}"
+            logging.warning("Collection Jellyfin : %s", exc)
+
+    task = _sync_state.get("task")
+    if task and not task.done():
+        return
+    _sync_state["task"] = asyncio.create_task(run())
+
+
+@app.post("/api/collection/sync")
+async def collection_sync():
+    ids = await _next_days_jf_ids()
+    try:
+        message = await jellyfin_sync_collection(ids)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Jellyfin a refusé : {exc}") from exc
+    _sync_state["last"] = ids
+    return {"message": message}
+
+
+# --------------------------------------------------------------------------- #
+# Écran de cuisine : page en lecture seule, ouverte par un lien secret
+# --------------------------------------------------------------------------- #
+
+def _wall_token(reset: bool = False) -> str:
+    path = settings.CONFIG_DIR / "wall_token"
+    if path.exists() and not reset:
+        return path.read_text().strip()
+    token = secrets.token_urlsafe(18)
+    settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(token)
+    os.chmod(path, 0o600)
+    return token
+
+
+def _base_url(request: Request) -> str:
+    return os.environ.get("PUBLIC_URL", "").rstrip("/") or str(request.base_url).rstrip("/")
+
+
+@app.get("/api/wall-link")
+async def wall_link(request: Request):
+    return {"url": f"{_base_url(request)}/mur?token={_wall_token()}"}
+
+
+@app.post("/api/wall-link/reset")
+async def wall_link_reset(request: Request):
+    return {"url": f"{_base_url(request)}/mur?token={_wall_token(reset=True)}"}
+
+
+@app.get("/mur")
+async def wall_page():
+    return FileResponse(STATIC / "wall.html")
+
+
+@app.get("/api/wall")
+async def wall_data(token: str = ""):
+    if not token or not secrets.compare_digest(token, _wall_token()):
+        raise HTTPException(403, "Lien d'écran invalide")
+    cfg = settings.load()
+    today = ics.today_local()
+    start = planner.week_start(today)
+    entries = []
+    for offset in (0, 7):
+        plan = await _decorate(await planner.get_plan(start + timedelta(days=offset), cfg))
+        entries += plan["entries"]
+    keep = ("id", "date", "weekday", "start", "end", "duration", "label", "audience", "item", "episodes", "reason", "appletv")
+    entries = [{k: e.get(k) for k in keep} for e in entries if e.get("item") and e["date"] >= today.isoformat()]
+    entries.sort(key=lambda e: (e["date"], e["start"]))
+    return {"today": today.isoformat(), "entries": entries[:12], "demo": Config.demo()}  # l'état des connexions d'aujourd'hui, pas celui du jour de création
 
 
 @app.post("/api/plan/regenerate")

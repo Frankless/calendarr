@@ -126,6 +126,28 @@ celui-ci. Si l'adresse saisie dans Réglages → Connexions n'est valable que po
 `http://jellyfin:8096`), remplissez aussi le champ **Adresse pour ouvrir Jellyfin depuis le téléphone ou
 l'iPad**.
 
+## Regarder avec Infuse sur l'Apple TV
+
+Dans **Réglages → Regarder**, choisissez comment la famille regarde :
+
+| Choix | Ce que fait le bouton |
+|---|---|
+| Jellyfin | **▶ Regarder** ouvre le titre dans Jellyfin. |
+| Infuse sur le téléphone ou l'iPad | **▶ Regarder** ouvre Infuse sur l'appareil, au bon film ou au bon épisode (à tester avec votre version d'Infuse). |
+| Infuse sur l'Apple TV | Une page web ne peut pas lancer un film sur l'Apple TV : le bouton devient **Sur l'Apple TV** et rappelle où trouver le titre dans Infuse, avec l'épisode à lancer. |
+
+Cochez **Tenir à jour une collection « Calendarr · Cette semaine »** : Calendarr rassemble dans Jellyfin
+les titres prévus pour les 7 prochains jours, et la met à jour quand le programme change. Si Infuse est
+relié à votre Jellyfin, la collection apparaît dans Infuse sur l'Apple TV, avec vos autres collections.
+
+## Écran de cuisine
+
+Dans **Réglages → Regarder**, copiez le lien de l'**écran de cuisine** et ouvrez-le sur une tablette
+murale, un écran d'assistant, une vieille tablette ou une télé. Il affiche l'heure, « Ce soir » en grand
+et la suite, se met à jour tout seul, et s'adapte à toutes les tailles (paysage ou portrait). Il ne
+demande pas de connexion et ne permet rien modifier. Le lien contient une clé secrète : si vous le
+perdez de vue, créez-en un nouveau, l'ancien cessera de fonctionner.
+
 ## Ajouter le programme à l'iPhone (iCloud)
 
 1. Sur l'iPhone, **connecté au Wi-Fi de la maison**, ouvrez Calendarr.

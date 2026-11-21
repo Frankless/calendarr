@@ -17,6 +17,12 @@ AUDIENCES = {
     "famille": "Toute la famille",
     "adultes": "Les parents",
 }
+PLAYERS = {
+    "jellyfin": "Jellyfin (navigateur ou app Jellyfin)",
+    "infuse": "Infuse sur le téléphone ou l'iPad",
+    "appletv": "Infuse sur l'Apple TV",
+}
+
 # Types de programmes
 KINDS = {
     "any": "Peu importe",
@@ -42,6 +48,10 @@ DEFAULT_SETTINGS = {
     "reminder_minutes": 15,
     "liked_genres": [],
     "avoided_genres": ["Horror"],
+    # Comment la famille regarde : "jellyfin", "infuse" (sur ce téléphone/iPad) ou "appletv" (Infuse sur l'Apple TV)
+    "player": "jellyfin",
+    # Tenir à jour une collection « Calendarr · Cette semaine » dans Jellyfin (visible dans Infuse)
+    "sync_collection": False,
     "week": [
         {"slots": [_slot("21:00", 60, "adultes", "serie", "Série du lundi")]},
         {"slots": []},
@@ -81,6 +91,9 @@ def save(data: dict) -> dict:
     for key in ("max_age_family", "max_age_kids", "series_max_episodes", "rewatch_after_days", "reminder_minutes"):
         clean[key] = max(0, int(clean[key]))
     clean["series_max_episodes"] = max(1, clean["series_max_episodes"])
+    if clean.get("player") not in PLAYERS:
+        clean["player"] = "jellyfin"
+    clean["sync_collection"] = bool(clean.get("sync_collection"))
     week = []
     for day in clean["week"][:7]:
         slots = []

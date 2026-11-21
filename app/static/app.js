@@ -93,7 +93,7 @@ function cover(item, { type = false, seen = false, over = "" } = {}) {
 /* Âge conseillé en clair (« Tous publics », « Dès 12 ans »), plutôt que PG-13 ou TV-MA. */
 const CERT_AGES = { "G": 0, "TV-Y": 0, "TV-G": 0, "U": 0, "AL": 0, "KT": 0, "TP": 0, "0": 0, "ALL": 0,
   "TV-Y7": 7, "PG": 7, "6": 6, "7": 7, "TV-PG": 10, "10": 10, "PG-13": 13, "12": 12, "TV-14": 14, "13": 13,
-  "14": 14, "R": 16, "16": 16, "TV-MA": 17, "17": 17, "NC-17": 18, "18": 18 };
+  "14": 14, "R": 16, "16": 16, "TV-MA": 16, "17": 16, "NC-17": 18, "18": 18 };
 function ageLabel(item) {
   const cert = String(item.cert || "").toUpperCase().replace("+", "").trim();
   const age = item.age ?? CERT_AGES[cert];
@@ -190,6 +190,9 @@ function renderWeek() {
 }
 
 function watchButton(e, cls) {
+  if (e.appletv) {
+    return `<button type="button" class="${cls}" data-atv='${esc(JSON.stringify(e.appletv))}' title="Comment le lancer sur l'Apple TV">${icon("play")}Sur l'Apple TV</button>`;
+  }
   if (!e.watch_url) return "";
   return `<a class="${cls}" href="${esc(e.watch_url)}" target="_blank" rel="noopener" title="Ouvrir dans Jellyfin">${icon("play")}Regarder</a>`;
 }
@@ -328,7 +331,7 @@ function renderTonight() {
           ${e.reason ? `<p class="reason">${esc(e.reason)}</p>` : ""}
           ${it.overview ? `<p class="overview">${esc(it.overview)}</p>` : ""}
           <div class="hero-actions">
-            ${e.watch_url ? watchButton(e, "btn big") : ""}
+            ${watchButton(e, "btn big")}
             <button class="btn big secondary" data-t-swap="${e.id}" data-week="${weekOf(e.date)}">${icon("swap")}Autre idée</button>
             <button class="btn big ghost" data-t-skip="${e.id}" data-week="${weekOf(e.date)}">${icon("moon")}Pas ce soir</button>
           </div>
@@ -396,6 +399,18 @@ function updateWakeButton() {
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && wakeWanted && !wakeLock && !$("#view-tonight").hidden) requestWakeLock().then(updateWakeButton);
+});
+
+/* ---------- Apple TV ---------- */
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-atv]");
+  if (!b) return;
+  const a = JSON.parse(b.dataset.atv);
+  $("#atv-title").textContent = a.title;
+  $("#atv-where").textContent = a.where.replace(/^Infuse → /, "");
+  $("#atv-ep").textContent = a.episode;
+  $("#atv-ep-row").hidden = !a.episode;
+  $("#atv-dialog").showModal();
 });
 
 /* ---------- calendrier ---------- */
@@ -513,7 +528,48 @@ async function loadSettings() {
   $("#s-reminder").value = s.reminder_minutes;
   renderGenres();
   renderWeekEditor();
+  renderWatching();
 }
+
+const PLAYER_HINTS = {
+  jellyfin: "▶ Regarder ouvre le titre dans Jellyfin (au bon épisode pour une série en cours).",
+  infuse: "▶ Regarder ouvre Infuse sur le téléphone ou l'iPad, au bon film ou au bon épisode. Infuse doit être relié à votre Jellyfin.",
+  appletv: "Une page web ne peut pas lancer un film sur l'Apple TV. Le bouton devient « Sur l'Apple TV » et rappelle où trouver le titre dans Infuse. Activez la collection ci-dessous : tous les titres de la semaine y seront rassemblés.",
+};
+function renderWatching() {
+  const s = state.settings;
+  $("#s-player").innerHTML = options(state.meta.players, s.player);
+  $("#player-hint").textContent = PLAYER_HINTS[s.player] || "";
+  $("#s-sync").checked = !!s.sync_collection;
+  $("#coll-name").textContent = `« ${state.meta.collection_name} »`;
+  api("/api/wall-link").then((r) => {
+    $("#wall-url").value = r.url;
+    $("#open-wall").href = r.url;
+  }).catch(() => {});
+}
+$("#s-player").addEventListener("change", (ev) => {
+  state.settings.player = ev.target.value;
+  $("#player-hint").textContent = PLAYER_HINTS[ev.target.value] || "";
+  if (ev.target.value === "appletv" && !state.settings.sync_collection) {
+    state.settings.sync_collection = true;
+    $("#s-sync").checked = true;
+  }
+});
+$("#s-sync").addEventListener("change", (ev) => (state.settings.sync_collection = ev.target.checked));
+$("#sync-now").onclick = async () => {
+  try { toast("Collection : " + (await api("/api/collection/sync", { method: "POST" })).message); }
+  catch (e) { toast(e.message); }
+};
+$("#copy-wall").onclick = async () => {
+  try { await navigator.clipboard.writeText($("#wall-url").value); toast("Lien copié"); } catch { $("#wall-url").select(); }
+};
+$("#reset-wall").onclick = async () => {
+  if (!confirm("Créer un nouveau lien ? Les écrans qui utilisent l'ancien afficheront « lien invalide ».")) return;
+  const r = await api("/api/wall-link/reset", { method: "POST" });
+  $("#wall-url").value = r.url;
+  $("#open-wall").href = r.url;
+  toast("Nouveau lien créé");
+};
 
 function renderGenres() {
   const s = state.settings;
