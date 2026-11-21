@@ -138,3 +138,15 @@ others too. Jellyfin provides the watch history and playback.
 - [ ] Who decides "J'irai le voir": each account, or only the administrator?
 - [ ] Is the catch-up placed in the schedule automatically, or only suggested for approval?
 - [ ] Are missing movies added straight to Radarr, or requested through Seerr?
+
+## Idea: Apple HomeView (set aside, 22 November 2026)
+
+HomeView has no App Store; third-party content comes through Safari, iPhone widgets, Live Activities and
+Siri App Intents. Options, from simplest to biggest:
+
+- [ ] Open the kitchen screen (`/mur`) in Safari on HomeView and tune its layout to that screen.
+- [ ] Richer iCloud calendar events (episode, "Regarder" link), if HomeView shows the family calendar.
+- [ ] A Shortcuts recipe: "Dis Siri, qu'est-ce qu'on regarde ce soir ?", backed by a small Calendarr endpoint.
+- [ ] A native iPhone app with a "Ce soir" widget, a Live Activity and Siri commands (needs a Mac, Xcode
+  and an Apple Developer account).
+- [ ] Show the Sunday card (step 5) on the kitchen screen too.
