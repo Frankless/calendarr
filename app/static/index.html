@@ -47,6 +47,9 @@
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z" fill="currentColor"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 7.5L4.5 12 9 16.5M4.5 12H15a4.5 4.5 0 0 1 0 9h-2"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9"/></symbol>
   </svg>
 
@@ -104,11 +107,27 @@
           <div class="page-head">
             <div>
               <h1>Surprends-moi</h1>
-              <p>Des idées piochées au hasard dans votre bibliothèque. Un titre vous tente ? Programmez-le.</p>
+              <p>Glissez vers la droite si ça vous tente, vers la gauche sinon. Vers le haut : déjà vu ; vers le bas : plus tard.</p>
             </div>
-            <button class="btn secondary" id="reshuffle"><svg><use href="#i-swap"/></svg>Autres idées</button>
           </div>
-          <div id="shelves"></div>
+          <div class="deck-tabs" role="tablist">
+            <button data-deck="moi">Pour moi</button>
+            <button data-deck="nous" class="active">Pour nous deux</button>
+            <button data-deck="famille">Pour la famille</button>
+          </div>
+          <div class="deck-wrap">
+            <div class="deck" id="deck" aria-live="polite"></div>
+            <div class="deck-actions">
+              <button class="round small" id="sw-undo" title="Annuler le dernier choix" aria-label="Annuler le dernier choix"><svg><use href="#i-undo"/></svg></button>
+              <button class="round no" data-sw="no" title="Non, pas pour nous (←)" aria-label="Non"><svg><use href="#i-x"/></svg></button>
+              <button class="round small later" data-sw="later" title="Plus tard (↓)" aria-label="Plus tard"><svg><use href="#i-upcoming"/></svg></button>
+              <button class="round small seen" data-sw="seen" title="Déjà vu (↑)" aria-label="Déjà vu"><svg><use href="#i-eye"/></svg></button>
+              <button class="round yes" data-sw="yes" title="Oui, ça me tente (→)" aria-label="Oui"><svg><use href="#i-heart"/></svg></button>
+            </div>
+            <p class="deck-help" id="deck-help"></p>
+          </div>
+          <div id="matches"></div>
+          <div class="match-pop" id="match-pop" hidden><div><span>♥</span><h2>C'est un match !</h2><p id="match-text"></p></div></div>
         </section>
 
         <!-- À VENIR -->

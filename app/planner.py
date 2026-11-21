@@ -17,7 +17,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import library
+from . import feedback, library
 from .settings import CONFIG_DIR, DAYS
 
 PLANS_DIR = CONFIG_DIR / "plans"
@@ -119,6 +119,13 @@ def score(item, slot, settings, ctx) -> tuple[float, str] | None:
     since = _days_since(item.get("last_played"), today)
     kids_slot = slot["audience"] != "adultes"
 
+    fb = ctx.get("fb") or {}
+    uid = item["uid"]
+    if uid in fb.get("no", ()):
+        return None  # quelqu'un a dit « pas pour nous »
+    if uid in fb.get("seen", ()) and item["kind"] == "film" and not kids_slot:
+        return None  # déjà vu, même hors Jellyfin
+
     if item["kind"] == "film":
         if item["uid"] in used:
             return None
@@ -154,6 +161,14 @@ def score(item, slot, settings, ctx) -> tuple[float, str] | None:
             s += 1.5
             if not nxt:
                 reason = "Nouvel épisode cette semaine"
+
+    if uid in fb.get("later", ()):
+        s -= 1.5
+    fans = fb.get("yes", {}).get(uid)
+    if fans:
+        s += 2.0 + len(fans)
+        if not reason.startswith("Vous en êtes"):
+            reason = "Vous en aviez envie ♥" if len(fans) == 1 else "Un match ♥ : vous l'avez choisi à deux"
 
     genres = set(item.get("genres") or [])
     liked = set(settings.get("liked_genres") or [])
@@ -228,6 +243,7 @@ async def build_week(start: date, settings: dict, salt: str = "") -> dict:
         "rng": _rng(f"{start.isoformat()}-{salt}"),
         "used": set(),
         "new_episodes": {u.get("series_uid") for u in upcoming if u.get("kind") == "serie"},
+        "fb": feedback.summary(),
     }
     # Les créneaux les plus exigeants (enfants, puis famille) choisissent en
     # premier, pour que la soirée des parents ne prenne pas le seul dessin animé.
@@ -370,6 +386,7 @@ async def swap(start: date, entry_id: str, settings: dict) -> dict:
         "rng": random.Random(),
         "used": used | skipped,
         "new_episodes": {u.get("series_uid") for u in upcoming if u.get("kind") == "serie"},
+        "fb": feedback.summary(),
     }
     candidates = [it for it in items if it["uid"] not in skipped]
     best = _pick(candidates, slot, settings, ctx)
@@ -420,7 +437,7 @@ def remove_entry(start: date, entry_id: str) -> dict | None:
 async def shelves(settings: dict) -> list[dict]:
     items, _ = await library.get()
     rng = random.Random()
-    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set()}
+    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set(), "fb": feedback.summary()}
     defs = [
         ("moi", "Pour moi", "Une série ou un docu, à son rythme",
          {"audience": "adultes", "kind": "any", "max_minutes": 600}, lambda it: it["kind"] == "serie" or is_doc(it)),
@@ -449,3 +466,129 @@ async def shelves(settings: dict) -> list[dict]:
             }
         )
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Swipe : piles de cartes et placement d'un « oui » dans le programme
+# --------------------------------------------------------------------------- #
+
+DECKS = {
+    "moi": {"title": "Pour moi", "audience": "adultes",
+            "slot": {"audience": "adultes", "kind": "any", "max_minutes": 600},
+            "keep": lambda it: it["kind"] == "serie" or is_doc(it)},
+    "nous": {"title": "Pour nous deux", "audience": "adultes",
+             "slot": {"audience": "adultes", "kind": "film", "max_minutes": 600},
+             "keep": lambda it: not set(it.get("genres") or []) & KIDS_GENRES},
+    "famille": {"title": "Pour la famille", "audience": "famille",
+                "slot": {"audience": "famille", "kind": "any", "max_minutes": 600},
+                "keep": lambda it: it["kind"] == "film" or set(it.get("genres") or []) & KIDS_GENRES},
+}
+
+
+async def deck(key: str, user_id: str, settings: dict, size: int = 20) -> list[dict]:
+    """Cartes à proposer à ce membre : jamais un titre qu'il a déjà jugé
+    (sauf « plus tard » après 14 jours), ni un titre refusé par la famille."""
+    d = DECKS[key]
+    items, _ = await library.get()
+    fb = feedback.summary()
+    mine = fb["by_user"].get(user_id, {})
+    rng = random.Random()
+    ctx = {"today": date.today(), "rng": rng, "used": set(), "new_episodes": set(), "fb": fb}
+    scored = []
+    for it in items:
+        decided = mine.get(it["uid"])
+        if decided and not (decided == "later" and it["uid"] not in fb["later"]):
+            continue
+        if not d["keep"](it) or not fits(it, d["slot"], settings):
+            continue
+        res = score(it, d["slot"], settings, ctx)
+        if not res:
+            continue
+        sc, reason = res
+        others = fb["yes"].get(it["uid"], set()) - {user_id}
+        if key == "nous" and others:
+            sc += 6  # l'autre a déjà dit oui : un match est possible
+            reason = "L'autre a déjà dit oui… et vous ?"
+        scored.append((sc + rng.random() * 3, it, reason))
+    scored.sort(key=lambda x: -x[0])
+    return [dict(_snapshot(it), reason=r) for _, it, r in scored[:size]]
+
+
+def _slot_accepts(entry: dict, item: dict, audience: str) -> bool:
+    if entry.get("audience") != audience:
+        return False
+    kind = entry.get("slot_kind", "any")
+    if kind == "doc" and not is_doc(item):
+        return False
+    if kind in ("film", "serie") and item["kind"] != kind:
+        return False
+    if item["kind"] == "film" and int(item.get("runtime") or 0) > int(entry.get("max_minutes") or 0) + 5:
+        return False
+    return not str(entry.get("reason", "")).startswith(("Vous en aviez envie", "Un match", "Choisi"))
+
+
+async def place(uid: str, audience: str, settings: dict, reason: str, days: int = 14) -> dict | None:
+    """Met le titre dans le prochain créneau compatible (à la place de ce qui
+    était prévu). Renvoie où il a été placé et ce qu'il remplace, pour annuler."""
+    from .ics import today_local  # import local : évite une boucle d'imports
+
+    items, _ = await library.get()
+    item = next((it for it in items if it["uid"] == uid), None)
+    if not item:
+        return None
+    today = today_local()
+    now = datetime.now().strftime("%H:%M")
+    start = week_start(today)
+    for offset in range(0, days + 7, 7):
+        ws = start + timedelta(days=offset)
+        plan = await get_plan(ws, settings)
+        for e in sorted(plan["entries"], key=lambda x: (x["date"], x["start"])):
+            if e["date"] < today.isoformat() or (e["date"] == today.isoformat() and e["start"] <= now):
+                continue
+            if e["date"] > (today + timedelta(days=days)).isoformat():
+                return None
+            if e.get("item") and e["item"]["uid"] == uid:
+                return {"week": ws.isoformat(), "entry_id": e["id"], "date": e["date"], "start": e["start"], "previous": None}
+            if not _slot_accepts(e, item, audience):
+                continue
+            slot = {"start": e["start"], "max_minutes": e["max_minutes"], "audience": e["audience"],
+                    "kind": e["slot_kind"], "label": e["label"]}
+            new = _entry(date.fromisoformat(e["date"]), slot, item, reason, settings)
+            new["id"] = e["id"]
+            plan["entries"] = [new if x["id"] == e["id"] else x for x in plan["entries"]]
+            await fill_episodes(plan, items, settings)
+            save_plan(plan)
+            return {"week": ws.isoformat(), "entry_id": e["id"], "date": e["date"], "start": e["start"], "previous": e}
+    return None
+
+
+async def unplace(placed: dict, settings: dict) -> None:
+    """Remet ce qui était prévu avant un « oui » annulé."""
+    if not placed or not placed.get("previous"):
+        return
+    ws = date.fromisoformat(placed["week"])
+    plan = load_plan(ws)
+    if not plan:
+        return
+    plan["entries"] = [placed["previous"] if e["id"] == placed["entry_id"] else e for e in plan["entries"]]
+    items, _ = await library.get()
+    await fill_episodes(plan, items, settings)
+    save_plan(plan)
+
+
+def mark_seen_locally(uid: str) -> None:
+    """Retire des programmes à venir un titre marqué « déjà vu »."""
+    from .ics import today_local
+
+    today = today_local().isoformat()
+    for p in PLANS_DIR.glob("*.json") if PLANS_DIR.exists() else []:
+        plan = json.loads(p.read_text("utf-8"))
+        changed = False
+        for e in plan["entries"]:
+            if e.get("item") and e["item"]["uid"] == uid and e["date"] >= today and e["item"]["kind"] == "film":
+                e["item"] = None
+                e["episodes"] = []
+                e["reason"] = "Déjà vu : utilisez « Autre idée » pour choisir autre chose"
+                changed = True
+        if changed:
+            save_plan(plan)

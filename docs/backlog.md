@@ -31,20 +31,16 @@ Décisions prises (2026-11-21) :
 
 ## P1 : surprise et retour d'information
 
-- [ ] **Surprends-moi en swipe** : pile de cartes plein écran. Les gestes, avec des boutons équivalents
-  pour l'accessibilité :
+- [x] **Surprends-moi en swipe** (v0.2.0), avec des boutons équivalents, le clavier et l'annulation :
   - → oui : le titre va dans le prochain créneau compatible ;
   - ← non : il n'est plus jamais reproposé ;
-  - ↑ déjà vu : il est marqué vu ;
-  - ↓ plus tard.
-
-  Un bouton annule le dernier swipe.
-- [ ] **Match à deux** : chacun swipe de son côté ; « On a un match » ne montre que les titres aimés par les
-  deux.
-- [ ] **Mémoire des choix** : refus, « déjà vu », goûts, lus par le planificateur (exclusions, genres
-  favorisés ou évités).
-- [ ] **Marquer vu depuis l'app**, renvoyé à Jellyfin, pour que l'historique soit juste.
+  - ↑ déjà vu : il est marqué vu, et un film l'est aussi dans Jellyfin ;
+  - ↓ plus tard : il revient dans deux semaines.
+- [x] **Match à deux** : chacun swipe sur son compte ; si deux personnes disent oui, le film est programmé et
+  rejoint « Vos matchs ».
+- [x] **Mémoire des choix**, lue par le planificateur : un « non » écarte le titre, un « oui » le favorise.
 - [ ] **Profils d'historique** : un utilisateur Jellyfin par public (parents, enfants).
+- [ ] Bouton « Déjà vu » aussi sur les cartes de la semaine et de « Ce soir ».
 
 ## P2 : intégration Jellyfin / Infuse
 

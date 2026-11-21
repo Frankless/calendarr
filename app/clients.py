@@ -342,6 +342,18 @@ async def jellyfin_users() -> list[str]:
     return [u.get("Name") for u in users if u.get("Name")]
 
 
+async def jellyfin_set_played(jf_id: str, played: bool = True) -> bool:
+    """Marque un titre vu (ou non vu) pour l'utilisateur Jellyfin choisi."""
+    if not (Config.jellyfin() and jf_id):
+        return False
+    async with httpx.AsyncClient() as client:
+        uid = await jellyfin_user_id(client)
+        url = f"{Config.jellyfin_url}/Users/{uid}/PlayedItems/{jf_id}"
+        r = await (client.post if played else client.delete)(url, headers=_jf_headers(), timeout=TIMEOUT)
+        r.raise_for_status()
+    return True
+
+
 COLLECTION_PREFIX = "Calendarr · "
 MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
              "septembre", "octobre", "novembre", "décembre"]

@@ -15,8 +15,8 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, ics, library, planner, settings
-from .clients import Config, collection_name, check_connections, jellyfin_sync_collection, jellyfin_users
+from . import auth, feedback, ics, library, planner, settings
+from .clients import Config, collection_name, jellyfin_set_played, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -496,6 +496,88 @@ async def add(data: dict = Body(...)):
 
 async def _decorate_add(*args):
     return await _decorate(await planner.add_entry(*args))
+
+
+# --------------------------------------------------------------------------- #
+# Swipe (« Surprends-moi ») et mémoire des choix
+# --------------------------------------------------------------------------- #
+
+def _fmt_when(placed: dict) -> str:
+    d = date.fromisoformat(placed["date"])
+    days = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+    return f"{days[d.weekday()]} à {placed['start'].replace(':', ' h ')}"
+
+
+@app.get("/api/deck")
+async def get_deck(request: Request, key: str = "nous"):
+    if key not in planner.DECKS:
+        _fail("Pile inconnue")
+    cards = await planner.deck(key, request.state.user["id"], settings.load())
+    return {"key": key, "cards": cards, "matches": await _matches() if key == "nous" else []}
+
+
+async def _matches() -> list[dict]:
+    items, _ = await library.get()
+    by_uid = {it["uid"]: it for it in items}
+    return [planner._snapshot(by_uid[u]) for u in feedback.matches("nous") if u in by_uid]
+
+
+@app.post("/api/swipe")
+async def swipe(request: Request, data: dict = Body(...)):
+    user = request.state.user
+    uid, decision, key = str(data.get("uid", "")), data.get("decision"), data.get("deck", "nous")
+    if key not in planner.DECKS or decision not in feedback.DECISIONS:
+        _fail("Choix invalide")
+    items, _ = await library.get()
+    item = next((it for it in items if it["uid"] == uid), None)
+    if not item:
+        _fail("Titre introuvable", 404)
+    cfg = settings.load()
+    row = feedback.record(user["id"], uid, decision, key)
+    out = {"decision": decision, "title": item["title"], "match": False, "placed": None, "jellyfin": False}
+
+    if decision == "yes":
+        audience = planner.DECKS[key]["audience"]
+        if key == "nous":
+            if uid in feedback.matches("nous"):
+                out["match"] = True
+                placed = await planner.place(uid, audience, cfg, "Un match ♥ : vous l'avez choisi à deux")
+            else:
+                placed = None  # on attend que l'autre dise oui aussi
+        else:
+            placed = await planner.place(uid, audience, cfg, "Vous en aviez envie ♥")
+        if placed:
+            feedback.set_placed(row["id"], placed)
+            out["placed"] = {"date": placed["date"], "start": placed["start"], "when": _fmt_when(placed)}
+    elif decision == "seen":
+        planner.mark_seen_locally(uid)
+        if item["kind"] == "film" and item.get("jf_id"):
+            try:
+                out["jellyfin"] = await jellyfin_set_played(item["jf_id"], True)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Jellyfin (marquer vu) : %s", exc)
+            if out["jellyfin"]:
+                await library.get(force=True)
+    return out
+
+
+@app.post("/api/swipe/undo")
+async def swipe_undo(request: Request):
+    last = feedback.undo_last(request.state.user["id"])
+    if not last:
+        _fail("Rien à annuler")
+    cfg = settings.load()
+    if last.get("placed"):
+        await planner.unplace(last["placed"], cfg)
+    items, _ = await library.get()
+    item = next((it for it in items if it["uid"] == last["uid"]), None)
+    if last["decision"] == "seen" and item and item["kind"] == "film" and item.get("jf_id"):
+        try:
+            await jellyfin_set_played(item["jf_id"], False)
+            await library.get(force=True)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Jellyfin (annuler vu) : %s", exc)
+    return {"uid": last["uid"], "deck": last["deck"], "card": planner._snapshot(item) if item else None}
 
 
 @app.get("/api/surprise")

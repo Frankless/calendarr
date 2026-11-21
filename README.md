@@ -24,8 +24,10 @@ la soirée peut commencer et de l'âge des enfants. Il s'ajoute ensuite à votre
     Les épisodes très courts, comme les dessins animés, sont regroupés.
 - **« Autre idée »** sur chaque créneau, si la proposition ne vous tente pas.
 - **Les soirées sans écran** : un jour sans créneau reste libre. Le but est d'éviter la surconsommation.
-- **Surprends-moi** : trois rangées d'idées (pour moi, pour nous deux, pour la famille). Un titre vous
-  plaît ? Vous le programmez en deux clics.
+- **Surprends-moi** : des cartes à swiper, comme une app de rencontre. → oui (le titre est programmé
+  dans le prochain créneau qui lui convient), ← non (il ne revient plus), ↑ déjà vu, ↓ plus tard. Dans
+  la pile **Pour nous deux**, chacun swipe sur son compte : si vous dites oui tous les deux, c'est un
+  **match** et le film est programmé.
 - **À venir** : les nouveaux épisodes (Sonarr) et les sorties de films (Radarr) des trois prochaines semaines.
 - **Le calendrier** : un lien d'abonnement pour iPhone, Mac, Google Agenda ou Outlook, avec un rappel
   15 minutes avant. Il se met à jour tout seul.

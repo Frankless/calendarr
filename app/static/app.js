@@ -120,7 +120,7 @@ function show(view) {
   if (view === "tonight") loadTonight();
   if (view === "week" && state.plan) renderWeek();
   if (view !== "tonight") releaseWakeLock();
-  if (view === "surprise" && !state.shelves.length) loadShelves();
+  if (view === "surprise") loadDeck();
   if (view === "upcoming") loadUpcoming();
   if (view === "settings") loadSettings();
   history.replaceState(null, "", `#${view}`);
@@ -429,40 +429,184 @@ $("#copy-cal").onclick = async () => {
   }
 };
 
-/* ---------- Surprends-moi ---------- */
-async function loadShelves() {
-  $("#shelves").innerHTML = `<div class="loading">On cherche des idées…</div>`;
-  state.shelves = await api("/api/surprise");
-  $("#shelves").innerHTML = state.shelves.map((s) => `
-    <section class="slider">
-      <div class="slider-head"><h2>${esc(s.title)}</h2><span>${esc(s.subtitle)}</span></div>
-      ${s.items.length ? `<div class="slider-row">${s.items.map((it, i) => `
-        <button class="title-card" data-shelf="${s.key}" data-i="${i}" aria-label="${esc(it.title)}">
-          ${cover(it, { type: true, seen: neverSeen(it.reason), over: `<div class="over"><small>${it.year || ""}${it.kind === "film" ? " · " + dur(it.runtime || 0) : ""}</small><b>${esc(it.title)}</b><i>${esc(it.overview || (it.genres || []).slice(0, 3).map(fr).join(", "))}</i></div>` })}
-        </button>`).join("")}</div>` : `<p class="hint">Rien ne correspond pour l'instant.</p>`}
-    </section>`).join("");
-}
-$("#reshuffle").onclick = loadShelves;
+/* ---------- Surprends-moi : swipe ---------- */
+const SWIPE_MSG = {
+  no: "D'accord, il ne sera plus proposé.",
+  later: "On vous le reproposera dans deux semaines.",
+};
+state.deckKey = "nous";
+state.cards = [];
 
-$("#shelves").addEventListener("click", (ev) => {
-  const card = ev.target.closest(".title-card");
-  if (!card) return;
-  const shelf = state.shelves.find((s) => s.key === card.dataset.shelf);
-  const it = shelf.items[+card.dataset.i];
-  state.pick = { item: it, audience: shelf.audience === "famille" ? "famille" : "adultes" };
+async function loadDeck(key = state.deckKey) {
+  state.deckKey = key;
+  $$(".deck-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.deck === key));
+  $("#deck").innerHTML = `<div class="loading">On mélange les cartes…</div>`;
+  $("#deck-help").textContent = key === "nous"
+    ? "Chacun swipe sur son compte. Quand vous dites oui tous les deux, c'est un match : le film est programmé."
+    : "Un « oui » le place dans le prochain créneau qui lui convient.";
+  try {
+    const res = await api(`/api/deck?key=${key}`);
+    state.cards = res.cards;
+    renderDeck();
+    renderMatches(res.matches || []);
+  } catch (e) {
+    $("#deck").innerHTML = `<div class="loading">${esc(e.message)}</div>`;
+  }
+}
+$$(".deck-tabs button").forEach((b) => (b.onclick = () => loadDeck(b.dataset.deck)));
+
+function cardHTML(it, i) {
+  const bg = it.poster ? `background-image:url('${esc(it.poster)}')` : `background:${fakeBg(it)}`;
+  return `<article class="swipe-card" data-i="${i}" style="--i:${i}">
+    <div class="sc-img" style="${bg}"></div>
+    <div class="stamp yes">OUI</div><div class="stamp no">NON</div><div class="stamp seen">DÉJÀ VU</div><div class="stamp later">PLUS TARD</div>
+    <div class="sc-info">
+      <div class="badges"><span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span>${ageLabel(it) ? `<span class="badge">${ageLabel(it)}</span>` : ""}</div>
+      <h2>${esc(it.title)}</h2>
+      <p class="meta">${esc(metaLine(it, { age: false }))}</p>
+      ${it.reason ? `<p class="reason">${esc(it.reason)}</p>` : ""}
+      ${it.overview ? `<p class="sc-overview">${esc(it.overview)}</p>` : ""}
+    </div>
+  </article>`;
+}
+
+function renderDeck() {
+  const shown = state.cards.slice(0, 3);
+  $("#deck").innerHTML = shown.length
+    ? shown.map(cardHTML).reverse().join("")
+    : `<div class="deck-empty"><h2>Vous avez tout vu !</h2><p class="muted">Plus d'idées dans cette pile pour l'instant. Essayez une autre pile, ou revenez plus tard.</p></div>`;
+  $$(".deck-actions button").forEach((b) => (b.disabled = !shown.length && b.id !== "sw-undo"));
+  const top = $('.swipe-card[data-i="0"]');
+  if (top) attachDrag(top);
+}
+
+function attachDrag(card) {
+  let sx = 0, sy = 0, dx = 0, dy = 0, dragging = false;
+  card.addEventListener("pointerdown", (ev) => {
+    dragging = true; sx = ev.clientX; sy = ev.clientY; dx = dy = 0;
+    card.setPointerCapture(ev.pointerId);
+    card.classList.add("dragging");
+  });
+  card.addEventListener("pointermove", (ev) => {
+    if (!dragging) return;
+    dx = ev.clientX - sx; dy = ev.clientY - sy;
+    card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 18}deg)`;
+    const dir = swipeDir(dx, dy, 60);
+    card.dataset.dir = dir || "";
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove("dragging");
+    const dir = swipeDir(dx, dy, 110);
+    if (dir) decide(dir);
+    else { card.style.transform = ""; card.dataset.dir = ""; }
+  };
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", end);
+}
+
+function swipeDir(dx, dy, min) {
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > min ? "yes" : dx < -min ? "no" : null;
+  return dy < -min ? "seen" : dy > min ? "later" : null;
+}
+
+let deciding = false;
+async function decide(decision) {
+  const it = state.cards[0];
+  const card = $('.swipe-card[data-i="0"]');
+  if (!it || deciding) return;
+  deciding = true;
+  const fly = { yes: "translate(140%, -10%) rotate(25deg)", no: "translate(-140%, -10%) rotate(-25deg)",
+                seen: "translate(0, -140%)", later: "translate(0, 140%)" }[decision];
+  if (card) { card.dataset.dir = decision; card.classList.add("gone"); card.style.transform = fly; }
+  try {
+    const res = await api("/api/swipe", { method: "POST", body: JSON.stringify({ uid: it.uid, decision, deck: state.deckKey }) });
+    state.cards.shift();
+    state.lastDeck = state.deckKey;
+    setTimeout(renderDeck, 220);
+    if (res.match) showMatch(res);
+    else if (decision === "yes") toast(res.placed ? `♥ Programmé ${res.placed.when}` : state.deckKey === "nous" ? "♥ Noté ! Si l'autre dit oui aussi, c'est un match." : "♥ Noté : il passera en priorité.");
+    else if (decision === "seen") toast(res.jellyfin ? "Marqué vu, aussi dans Jellyfin." : "Marqué vu : il ne sera plus proposé.");
+    else toast(SWIPE_MSG[decision]);
+    if (state.cards.length < 4) refillDeck();
+    if (decision === "yes" || decision === "seen") state.plan = null;
+  } catch (e) {
+    toast("Oups : " + e.message);
+    if (card) { card.classList.remove("gone"); card.style.transform = ""; card.dataset.dir = ""; }
+  } finally {
+    deciding = false;
+  }
+}
+
+async function refillDeck() {
+  try {
+    const res = await api(`/api/deck?key=${state.deckKey}`);
+    const have = new Set(state.cards.map((c) => c.uid));
+    state.cards.push(...res.cards.filter((c) => !have.has(c.uid)));
+    if ($("#deck .deck-empty") && state.cards.length) renderDeck();
+    renderMatches(res.matches || []);
+  } catch { /* on réessaiera au prochain choix */ }
+}
+
+function showMatch(res) {
+  $("#match-text").textContent = res.placed ? `« ${res.title} » : programmé ${res.placed.when}.` : `« ${res.title} » : il passera en priorité.`;
+  const pop = $("#match-pop");
+  pop.hidden = false;
+  setTimeout(() => (pop.hidden = true), 2600);
+  if (state.deckKey === "nous") refillDeck();
+}
+$("#match-pop").onclick = () => ($("#match-pop").hidden = true);
+
+$$(".deck-actions [data-sw]").forEach((b) => (b.onclick = () => decide(b.dataset.sw)));
+$("#sw-undo").onclick = async () => {
+  try {
+    const res = await api("/api/swipe/undo", { method: "POST" });
+    if (res.card && res.deck === state.deckKey) {
+      state.cards = [res.card, ...state.cards.filter((c) => c.uid !== res.card.uid)];
+      renderDeck();
+    }
+    state.plan = null;
+    toast(`Choix annulé${res.card ? ` : « ${res.card.title} »` : ""}`);
+  } catch (e) { toast(e.message); }
+};
+document.addEventListener("keydown", (ev) => {
+  if ($("#view-surprise").hidden || ev.target.closest("input, select, textarea, dialog[open]")) return;
+  const k = { ArrowRight: "yes", ArrowLeft: "no", ArrowUp: "seen", ArrowDown: "later" }[ev.key];
+  if (k) { ev.preventDefault(); decide(k); }
+  if (ev.key === "Backspace" || (ev.key === "z" && (ev.metaKey || ev.ctrlKey))) { ev.preventDefault(); $("#sw-undo").click(); }
+});
+
+function renderMatches(list) {
+  const el = $("#matches");
+  if (state.deckKey !== "nous" || !list.length) { el.innerHTML = ""; return; }
+  state.matchList = list;
+  el.innerHTML = `<div class="later-head"><h2>Vos matchs ♥</h2></div>
+    <div class="slider-row">${list.map((it, i) => `
+      <button class="title-card" data-match="${i}" aria-label="${esc(it.title)}">
+        ${cover(it, { type: true, over: `<div class="over"><small>${it.year || ""}</small><b>${esc(it.title)}</b><i>Toucher pour choisir le soir</i></div>` })}
+      </button>`).join("")}</div>`;
+}
+$("#matches").addEventListener("click", (ev) => {
+  const c = ev.target.closest("[data-match]");
+  if (c) openPick(state.matchList[+c.dataset.match], "adultes");
+});
+
+function openPick(it, audience) {
+  state.pick = { item: it, audience };
   $("#pick-backdrop").style.background = it.poster ? `center/cover url('${it.poster}')` : fakeBg(it);
   $("#pick-cover").innerHTML = cover(it);
-  $("#pick-badges").innerHTML = `<span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span>${neverSeen(it.reason) ? `<span class="badge ok">Jamais vu</span>` : ""}`;
+  $("#pick-badges").innerHTML = `<span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span>`;
   $("#pick-title").textContent = it.title;
   $("#pick-meta").textContent = metaLine(it);
-  $("#pick-reason").textContent = it.reason || "";
-  $("#pick-reason").hidden = !it.reason || neverSeen(it.reason) && it.reason === "Jamais vu";
+  $("#pick-reason").textContent = "Un match ♥";
+  $("#pick-reason").hidden = false;
   $("#pick-overview").textContent = it.overview || "";
   $("#pick-overview").hidden = !it.overview;
   $("#pick-date").value = state.status?.today || iso(new Date());
-  $("#pick-time").innerHTML = timeOptions(state.pick.audience === "famille" ? "18:30" : "21:00");
+  $("#pick-time").innerHTML = timeOptions(audience === "famille" ? "18:30" : "21:00");
   $("#pick-dialog").showModal();
-});
+}
 
 $("#pick-dialog").addEventListener("close", async () => {
   if ($("#pick-dialog").returnValue !== "ok" || !state.pick) return;
@@ -712,7 +856,6 @@ $("#save-conn").onclick = async () => {
     toast(configured === 0 ? "Enregistré. Mode découverte."
       : ok === configured ? "Connexions enregistrées et testées ✓"
       : "Enregistré, mais une connexion ne répond pas : voir le message rouge.");
-    state.shelves = [];
     await loadWeek();
   } catch (e) {
     toast("Oups : " + e.message);
