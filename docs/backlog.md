@@ -37,9 +37,15 @@ d'assistant de la cuisine ; la famille regarde avec Infuse sur l'Apple TV ; l'â
 - [x] Match à deux : chacun swipe sur son compte, et si deux personnes disent oui, le film est programmé
   et rejoint « Vos matchs ».
 - [x] Mémoire des choix, lue par le planificateur : un « non » écarte le titre, un « oui » le favorise.
-- [ ] Un utilisateur Jellyfin par public (parents, enfants), pour que l'historique « déjà vu » des
-  enfants ne se mélange pas à celui des parents.
-- [ ] Bouton « Déjà vu » aussi sur les cartes de la semaine et de « Ce soir ».
+- [x] Un utilisateur Jellyfin par public (parents, enfants, famille) : chaque public a son propre « déjà
+  vu » et sa propre progression dans les séries.
+- [x] « Vu » sur les cartes de la semaine et de Ce soir. Pour un programme d'aujourd'hui ou passé, « On
+  l'a vu » coche le film ou les épisodes dans Jellyfin, pour le bon utilisateur. Pour un programme à
+  venir, « Déjà vu » remplace le film par une autre idée, ou passe aux épisodes suivants d'une série.
+- [x] Retours d'usage du 21 novembre : la semaine s'ouvre sur aujourd'hui avec les jours passés repliés,
+  une seule action visible par carte (le reste dans « … »), affiche pleine carte dans le swipe avec le
+  texte sur fond sombre, « À venir » à partir d'aujourd'hui (« Prêt à regarder », « Sort le 24 nov. »),
+  « Garder l'écran allumé » en haut de Ce soir, boutons du swipe plus grands.
 
 ## P2 : Jellyfin et Infuse
 

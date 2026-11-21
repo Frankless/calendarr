@@ -713,3 +713,74 @@ a.mini { text-decoration: none; }
 @media (max-width: 768px) {
   .hero::after { background: rgba(var(--scrim), .86); }
 }
+
+/* « Vu » */
+.prog.watched { opacity: .72; }
+.prog.watched h3::after { content: " · vu"; color: var(--text-2); font-weight: 400; }
+.mini.seen-btn.on { color: var(--accent-text); border-color: var(--accent-soft); background: var(--accent-soft); }
+#jf-user-kids, #jf-user-family { margin-top: 2px; }
+
+/* ---------- Semaine : jours passés repliés ---------- */
+.past-days { margin-bottom: 8px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--surface); }
+.past-days > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; color: var(--text-2); list-style: none; display: flex; gap: 8px; align-items: baseline; }
+.past-days > summary::-webkit-details-marker { display: none; }
+.past-days > summary::before { content: "▸"; color: var(--text-2); transition: transform .15s; }
+.past-days[open] > summary::before { transform: rotate(90deg); }
+.past-days > .week { padding: 0 16px 16px; }
+
+/* ---------- Cartes : menu « … » ---------- */
+.prog-actions { align-items: center; }
+.card-menu { position: relative; }
+.card-menu .more { padding: 6px 10px; }
+.card-menu .menu {
+  display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px;
+  flex-direction: column; padding: 6px; border-radius: var(--r-ctl); background: var(--surface);
+  border: 1px solid var(--line); box-shadow: 0 12px 30px rgba(0,0,0,.25);
+}
+.card-menu.open .menu { display: flex; }
+.card-menu .menu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 6px;
+  background: none; color: var(--text); font: inherit; font-size: var(--fs-sm, 14px); text-align: left; cursor: pointer;
+}
+.card-menu .menu button svg { width: 16px; height: 16px; }
+.card-menu .menu button:hover { background: var(--raised); }
+.card-menu .menu button.danger { color: var(--danger); }
+
+/* ---------- Ce soir : outils en haut ---------- */
+.tonight-tools { display: flex; justify-content: flex-end; margin: -8px 0 12px; }
+.tonight-tools .wake { margin: 0; }
+
+/* ---------- Surprends-moi : affiche pleine carte, texte sur fond sombre uni ---------- */
+.swipe-card { box-shadow: 0 18px 40px rgba(0,0,0,.32); transform: scale(calc(1 - var(--i) * .03)); background: #15120f; }
+.swipe-card:not([data-i="0"]) .sc-info { visibility: hidden; }
+.sc-img { inset: 0; }
+.sc-info { padding: 16px 18px 18px; background: #15120f; color: #f6f1ea; }
+.sc-info::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 80px; pointer-events: none;
+  background: linear-gradient(to top, #15120f, rgba(21,18,15,0));
+}
+.sc-info h2 { color: #f6f1ea; }
+.sc-info .meta, .sc-info .reason, .sc-overview { color: rgba(246,241,234,.72); }
+.sc-info .badge { color: #f6f1ea; border-color: rgba(246,241,234,.28); background: rgba(246,241,234,.06); }
+
+/* ---------- Surprends-moi : boutons plus grands et mieux espacés ---------- */
+.deck-actions { gap: 20px; }
+.round.small { width: 56px; height: 56px; }
+.round.small svg { width: 22px; height: 22px; }
+
+@media (max-width: 768px) {
+  .sc-info { padding: 14px 16px 16px; }
+  .round { width: 58px; height: 58px; }
+  .round.small { width: 50px; height: 50px; }
+  .deck-actions { gap: 14px; }
+  .card-menu .menu { left: auto; right: 0; }
+}
+
+/* Carte du swipe : l'affiche remplit tout l'espace au-dessus du texte */
+.swipe-card { display: flex; flex-direction: column; }
+.swipe-card .sc-img { position: relative; inset: auto; flex: 1; min-height: 0; }
+.swipe-card .sc-info { position: relative; left: auto; right: auto; bottom: auto; flex: none; }
+.swipe-card .sc-info::before { height: 48px; }
+.sc-info .badge.film, .sc-info .badge.serie { border: 0; background: none; padding-left: 0; }
+.swipe-card .stamp { z-index: 4; }
+.swipe-card .sc-img { background-position: center top; }

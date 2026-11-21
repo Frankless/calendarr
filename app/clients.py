@@ -37,6 +37,8 @@ FIELDS = {
     "jellyfin_key": "JELLYFIN_API_KEY",
     "jellyfin_user": "JELLYFIN_USER",
     "jellyfin_web_url": "JELLYFIN_PUBLIC_URL",
+    "jellyfin_user_kids": "JELLYFIN_USER_KIDS",
+    "jellyfin_user_family": "JELLYFIN_USER_FAMILY",
 }
 
 
@@ -56,6 +58,7 @@ class Config:
 
     radarr_url = radarr_key = sonarr_url = sonarr_key = ""
     jellyfin_url = jellyfin_key = jellyfin_user = jellyfin_web_url = ""
+    jellyfin_user_kids = jellyfin_user_family = ""
 
     @classmethod
     def reload(cls) -> None:
@@ -110,7 +113,18 @@ class Config:
                 "key_hint": hint(getattr(cls, f"{svc}_key")),
             }
             for svc in ("radarr", "sonarr", "jellyfin")
-        } | {"jellyfin_user": cls.jellyfin_user, "jellyfin_web_url": cls.jellyfin_web_url}
+        } | {"jellyfin_user": cls.jellyfin_user, "jellyfin_web_url": cls.jellyfin_web_url,
+             "jellyfin_user_kids": cls.jellyfin_user_kids, "jellyfin_user_family": cls.jellyfin_user_family}
+
+    @classmethod
+    def profile(cls, audience: str) -> str:
+        """Utilisateur Jellyfin dont on lit l'historique pour ce public
+        ("" = l'utilisateur principal, celui des parents)."""
+        if audience == "enfants":
+            return cls.jellyfin_user_kids
+        if audience == "famille":
+            return cls.jellyfin_user_family
+        return ""
 
     @classmethod
     def watch_url(cls, jf_id: str | None) -> str | None:
@@ -321,15 +335,17 @@ def _jf_headers() -> dict:
     }
 
 
-async def jellyfin_user_id(client: httpx.AsyncClient) -> str | None:
+async def jellyfin_user_id(client: httpx.AsyncClient, name: str = "") -> str | None:
+    """Identifiant Jellyfin d'un utilisateur ; sans nom, l'utilisateur principal."""
     users = await _get(client, f"{Config.jellyfin_url}/Users", headers=_jf_headers())
     if not users:
         return None
-    if Config.jellyfin_user:
+    wanted = name or Config.jellyfin_user
+    if wanted:
         for u in users:
-            if (u.get("Name") or "").lower() == Config.jellyfin_user.lower():
+            if (u.get("Name") or "").lower() == wanted.lower():
                 return u["Id"]
-        log.warning("Utilisateur Jellyfin « %s » introuvable, on prend le premier.", Config.jellyfin_user)
+        log.warning("Utilisateur Jellyfin « %s » introuvable, on prend le premier.", wanted)
     admins = [u for u in users if (u.get("Policy") or {}).get("IsAdministrator")]
     return (admins or users)[0]["Id"]
 
@@ -342,16 +358,37 @@ async def jellyfin_users() -> list[str]:
     return [u.get("Name") for u in users if u.get("Name")]
 
 
-async def jellyfin_set_played(jf_id: str, played: bool = True) -> bool:
-    """Marque un titre vu (ou non vu) pour l'utilisateur Jellyfin choisi."""
+async def jellyfin_set_played(jf_id: str, played: bool = True, user: str = "") -> bool:
+    """Marque un titre vu (ou non vu) pour un utilisateur Jellyfin."""
     if not (Config.jellyfin() and jf_id):
         return False
     async with httpx.AsyncClient() as client:
-        uid = await jellyfin_user_id(client)
+        uid = await jellyfin_user_id(client, user)
         url = f"{Config.jellyfin_url}/Users/{uid}/PlayedItems/{jf_id}"
         r = await (client.post if played else client.delete)(url, headers=_jf_headers(), timeout=TIMEOUT)
         r.raise_for_status()
     return True
+
+
+async def jellyfin_set_episodes_played(series_jf_id: str, codes: list[str], played: bool = True, user: str = "") -> int:
+    """Marque vus (ou non vus) des épisodes d'une série, désignés par leur code S01E02.
+    Renvoie le nombre d'épisodes trouvés et marqués."""
+    if not (Config.jellyfin() and series_jf_id and codes):
+        return 0
+    wanted = set(codes)
+    done = 0
+    async with httpx.AsyncClient() as client:
+        uid = await jellyfin_user_id(client, user)
+        data = await _get(client, f"{Config.jellyfin_url}/Shows/{series_jf_id}/Episodes", headers=_jf_headers(),
+                          params={"userId": uid, "EnableImages": "false"})
+        for ep in data.get("Items", []):
+            code = f"S{ep.get('ParentIndexNumber') or 0:02d}E{ep.get('IndexNumber') or 0:02d}"
+            if code in wanted:
+                url = f"{Config.jellyfin_url}/Users/{uid}/PlayedItems/{ep['Id']}"
+                r = await (client.post if played else client.delete)(url, headers=_jf_headers(), timeout=TIMEOUT)
+                r.raise_for_status()
+                done += 1
+    return done
 
 
 COLLECTION_PREFIX = "Calendarr · "
@@ -420,10 +457,10 @@ def _parse_dt(value: str | None) -> str | None:
         return value[:10]
 
 
-async def jellyfin_history(client: httpx.AsyncClient) -> dict:
+async def jellyfin_history(client: httpx.AsyncClient, user: str = "") -> dict:
     """Ce qui a été vu, par identifiant TMDB (films) et TVDB (séries),
     plus l'épisode « à suivre » de chaque série commencée."""
-    uid = await jellyfin_user_id(client)
+    uid = await jellyfin_user_id(client, user)
     if not uid:
         return {"movies": {}, "series": {}, "next_up": {}}
 

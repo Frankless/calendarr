@@ -200,7 +200,9 @@
                   <label class="field">Adresse<input data-k="url" type="url" placeholder="http://192.168.1.20:8096" autocomplete="off"></label>
                   <label class="field">Clé API <small>Jellyfin → Tableau de bord → Clés API → +</small><input data-k="key" type="password" autocomplete="new-password"></label>
                   <label class="field">Adresse pour ouvrir Jellyfin depuis le téléphone ou l'iPad <small>facultatif : seulement si elle est différente de l'adresse ci-dessus (par exemple https://jellyfin.mondomaine.be)</small><input id="jf-web" type="url" placeholder="Même adresse que ci-dessus" autocomplete="off"></label>
-                  <label class="field">Utilisateur dont on lit le « déjà vu »<select id="jf-user"><option value="">Le premier administrateur</option></select></label>
+                  <label class="field">Historique des parents <small>son « déjà vu » sert pour les créneaux des parents</small><select id="jf-user"><option value="">Le premier administrateur</option></select></label>
+                  <label class="field">Historique des enfants <small>pour les créneaux « Les enfants », si les enfants ont leur propre utilisateur Jellyfin</small><select id="jf-user-kids" data-profile></select></label>
+                  <label class="field">Historique « toute la famille » <small>pour les créneaux regardés tous ensemble</small><select id="jf-user-family" data-profile></select></label>
                 </div>
                 <div class="conn-actions">
                   <button type="button" class="btn" id="save-conn"><svg><use href="#i-check"/></svg>Enregistrer et tester</button>

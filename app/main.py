@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, feedback, ics, library, planner, settings
-from .clients import Config, collection_name, jellyfin_set_played, check_connections, jellyfin_sync_collection, jellyfin_users
+from .clients import Config, collection_name, jellyfin_set_episodes_played, jellyfin_set_played, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -263,6 +263,9 @@ async def put_connections(data: dict = Body(...)):
         flat["jellyfin_user"] = data["jellyfin_user"]
     if "jellyfin_web_url" in data:
         flat["jellyfin_web_url"] = data["jellyfin_web_url"]
+    for key in ("jellyfin_user_kids", "jellyfin_user_family"):
+        if key in data:
+            flat[key] = data[key]
     Config.save(flat)
     await library.get(force=True)
     after = Config.public() | {"keys": (Config.radarr_key, Config.sonarr_key, Config.jellyfin_key)}
@@ -321,6 +324,7 @@ async def _decorate(plan: dict) -> dict:
         it = e.get("item")
         full = by_uid.get(it["uid"]) if it else None
         if it and full:
+            full = library.view(full, e.get("audience", "adultes"))
             e["item"] = it | {"age": planner.min_age(full)}
             jf_id = full.get("jf_id")
             nxt = full.get("next_up")
@@ -373,7 +377,7 @@ async def _week_remaining() -> tuple[str, list[str]]:
     first, last = today.isoformat(), (start + timedelta(days=6)).isoformat()
     ids = []
     for e in sorted(entries, key=lambda x: (x["date"], x["start"])):
-        if e.get("item") and first <= e["date"] <= last:
+        if e.get("item") and first <= e["date"] <= last and not e.get("watched"):
             full = by_uid.get(e["item"]["uid"])
             if full and full.get("jf_id"):
                 ids.append(full["jf_id"])
@@ -469,6 +473,83 @@ async def regenerate(week: str | None = None, refresh: bool = False):
     return await _decorate(await planner.regenerate(_week(week), settings.load()))
 
 
+@app.post("/api/plan/watched")
+async def plan_watched(request: Request, week: str, entry: str):
+    """« On l'a vu » (programme d'aujourd'hui ou passé) : coché dans Jellyfin
+    pour le bon public, et marqué vu dans le programme ; un second appui annule.
+    « Déjà vu » (programme à venir) : écarté, et remplacé par une autre idée."""
+    cfg = settings.load()
+    ws = _week(week)
+    plan = await planner.get_plan(ws, cfg)
+    e = next((x for x in plan["entries"] if x["id"] == entry), None)
+    if not e or not e.get("item"):
+        _fail("Programme introuvable", 404)
+    items, _ = await library.get()
+    full = next((it for it in items if it["uid"] == e["item"]["uid"]), None)
+    if not full:
+        _fail("Titre introuvable", 404)
+    user = Config.profile(e["audience"])
+    today = ics.today_local().isoformat()
+    message, jf = "", False
+
+    if e["date"] <= today:
+        watched = not e.get("watched")
+        try:
+            if full["kind"] == "film":
+                jf = await jellyfin_set_played(full.get("jf_id"), watched, user)
+            else:
+                codes = [ep["code"] for ep in e.get("episodes") or []]
+                jf = bool(await jellyfin_set_episodes_played(full.get("jf_id"), codes, watched, user))
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Jellyfin (vu) : %s", exc)
+        e["watched"] = watched
+        if full["kind"] == "film":
+            if watched:
+                feedback.record(request.state.user["id"], full["uid"], "seen", _deck_for(e["audience"]))
+            else:
+                feedback.forget(request.state.user["id"], full["uid"])
+        planner.save_plan(plan)
+        if jf:
+            await library.get(force=True)
+        message = ("Bien vu ! C'est coché" + (" dans Jellyfin." if jf else ".")) if watched else "D'accord, ce n'est plus marqué vu."
+        out = plan
+    elif full["kind"] == "serie":
+        # série à venir : ces épisodes-là sont déjà vus, on passe aux suivants
+        codes = [ep["code"] for ep in e.get("episodes") or []]
+        try:
+            jf = bool(await jellyfin_set_episodes_played(full.get("jf_id"), codes, True, user))
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Jellyfin (épisodes déjà vus) : %s", exc)
+        if jf:
+            items, _ = await library.get(force=True)
+            await planner.fill_episodes(plan, items, cfg)
+            planner.save_plan(plan)
+        new = next((x for x in plan["entries"] if x["id"] == entry), {})
+        nxt = (new.get("episodes") or [{}])[0].get("code")
+        message = (f"Épisodes cochés dans Jellyfin : on passe à la suite ({nxt})." if nxt else "Épisodes cochés dans Jellyfin.") if jf \
+            else "Impossible de cocher ces épisodes dans Jellyfin."
+        out = plan
+    else:
+        feedback.record(request.state.user["id"], full["uid"], "seen", _deck_for(e["audience"]))
+        if full["kind"] == "film" and full.get("jf_id"):
+            try:
+                jf = await jellyfin_set_played(full["jf_id"], True, user)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Jellyfin (déjà vu) : %s", exc)
+            if jf:
+                await library.get(force=True)
+        out = await planner.swap(ws, entry, cfg)
+        new = next((x for x in out["entries"] if x["id"] == entry), {})
+        title = (new.get("item") or {}).get("title")
+        message = (f"Déjà vu : on propose « {title} » à la place." if title and title != full["title"]
+                   else "Déjà vu : rien d'autre ne convient pour ce créneau.")
+    return (await _decorate(out)) | {"message": message}
+
+
+def _deck_for(audience: str) -> str:
+    return {"enfants": "famille", "famille": "famille"}.get(audience, "nous")
+
+
 @app.post("/api/plan/swap")
 async def swap(week: str, entry: str):
     return await _decorate(await planner.swap(_week(week), entry, settings.load()))
@@ -553,7 +634,7 @@ async def swipe(request: Request, data: dict = Body(...)):
         planner.mark_seen_locally(uid)
         if item["kind"] == "film" and item.get("jf_id"):
             try:
-                out["jellyfin"] = await jellyfin_set_played(item["jf_id"], True)
+                out["jellyfin"] = await jellyfin_set_played(item["jf_id"], True, Config.profile(planner.DECKS[key]["audience"]))
             except Exception as exc:  # noqa: BLE001
                 logging.warning("Jellyfin (marquer vu) : %s", exc)
             if out["jellyfin"]:
@@ -573,7 +654,7 @@ async def swipe_undo(request: Request):
     item = next((it for it in items if it["uid"] == last["uid"]), None)
     if last["decision"] == "seen" and item and item["kind"] == "film" and item.get("jf_id"):
         try:
-            await jellyfin_set_played(item["jf_id"], False)
+            await jellyfin_set_played(item["jf_id"], False, Config.profile(planner.DECKS[last["deck"]]["audience"]))
             await library.get(force=True)
         except Exception as exc:  # noqa: BLE001
             logging.warning("Jellyfin (annuler vu) : %s", exc)
@@ -587,7 +668,9 @@ async def surprise():
 
 @app.get("/api/upcoming")
 async def upcoming():
-    return await library.upcoming(ics.today_local() - timedelta(days=1), days=21)
+    today = ics.today_local()
+    items = await library.upcoming(today, days=21)
+    return [u for u in items if u.get("date", "") >= today.isoformat()]
 
 
 @app.get("/calendar.ics")

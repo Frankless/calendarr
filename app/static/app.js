@@ -118,6 +118,7 @@ function show(view) {
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${view}`));
   if (view === "tonight") loadTonight();
   if (view === "week" && state.plan) renderWeek();
+  if (view === "week") requestAnimationFrame(scrollToToday);
   if (view !== "tonight") releaseWakeLock();
   if (view === "surprise") loadDeck();
   if (view === "upcoming") loadUpcoming();
@@ -151,9 +152,16 @@ async function loadWeek(week) {
     state.plan = await api(`/api/plan${week ? "?week=" + week : ""}`);
     state.week = state.plan.week;
     renderWeek();
+    if (!$("#view-week").hidden) requestAnimationFrame(scrollToToday);
   } catch (e) {
     $("#week").innerHTML = `<div class="loading">Impossible de charger le programme : ${esc(e.message)}</div>`;
   }
+}
+
+function scrollToToday() {
+  const t = $("#week .day.today");
+  if (t && !$("#view-week").hidden) t.scrollIntoView({ block: "start", behavior: "instant" });
+  if (t) window.scrollBy(0, -16);
 }
 
 function renderBanner(plan) {
@@ -175,18 +183,27 @@ function renderWeek() {
   const today = state.status?.today || iso(new Date());
   $("#week-title").textContent = weekTitle(plan.week);
   renderBanner(plan);
-  const html = [];
+  const past = [], rest = [];
   for (let i = 0; i < 7; i++) {
     const day = addDays(plan.week, i);
     const d = parse(day);
     const entries = plan.entries.filter((e) => e.date === day);
     const cls = day === today ? "today" : day < today ? "past" : "";
-    html.push(`<article class="day ${cls}">
+    const html = `<article class="day ${cls}" data-day="${day}">
       <div class="day-head"><span>${DAYS[i]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</span></div>
       <div class="day-items">${entries.length ? entries.map(renderEntry).join("") : `<div class="free">${FREE_LINES[(d.getDate() + i) % FREE_LINES.length]}</div>`}</div>
-    </article>`);
+    </article>`;
+    (day < today ? past : rest).push(html);
   }
-  $("#week").innerHTML = html.join("");
+  // Les jours passés sont repliés : la semaine s'ouvre sur aujourd'hui.
+  const n = past.length;
+  const folded = n ? `<details class="past-days"${state.showPast ? " open" : ""}>
+      <summary>${n === 1 ? "Le jour passé" : `Les ${n} jours passés`} <span class="muted">${DAYS[0].toLowerCase()} → ${DAYS[n - 1].toLowerCase()}</span></summary>
+      <div class="week">${past.join("")}</div>
+    </details>` : "";
+  $("#week").innerHTML = folded + rest.join("");
+  const pd = $("#week .past-days");
+  if (pd) pd.addEventListener("toggle", () => (state.showPast = pd.open));
 }
 
 function watchButton(e, cls) {
@@ -195,6 +212,46 @@ function watchButton(e, cls) {
   }
   if (!e.watch_url) return "";
   return `<a class="${cls}" href="${esc(e.watch_url)}" target="_blank" rel="noopener" title="Ouvrir dans Jellyfin">${icon("play")}Regarder</a>`;
+}
+
+/* « On l'a vu » (aujourd'hui ou avant) ou « Déjà vu » (à venir) */
+function seenButton(e, cls) {
+  const today = state.status?.today || iso(new Date());
+  if (e.date > today) {
+    return `<button class="${cls}" data-seen="${e.id}" data-week="${weekOf(e.date)}" title="Vous l'avez déjà vu : on propose autre chose">${icon("eye")}Déjà vu</button>`;
+  }
+  return e.watched
+    ? `<button class="${cls} on" data-seen="${e.id}" data-week="${weekOf(e.date)}" title="Toucher pour annuler">${icon("check")}Vu</button>`
+    : `<button class="${cls}" data-seen="${e.id}" data-week="${weekOf(e.date)}" title="Coché aussi dans Jellyfin">${icon("check")}On l'a vu</button>`;
+}
+
+async function markSeen(btn) {
+  btn.disabled = true;
+  try {
+    const res = await api(`/api/plan/watched?week=${btn.dataset.week}&entry=${btn.dataset.seen}`, { method: "POST" });
+    toast(res.message);
+    return res;
+  } catch (e) {
+    toast("Oups : " + e.message);
+    btn.disabled = false;
+    return null;
+  }
+}
+
+/* Une seule action visible : « Regarder » (aujourd'hui et à venir). Le reste est dans « … ».
+   Un jour passé ne propose que de cocher « Vu ». */
+function cardActions(e) {
+  const today = state.status?.today || iso(new Date());
+  if (e.date < today || e.watched) return seenButton(e, "mini seen-btn");
+  return `${watchButton(e, "mini play")}
+    <div class="card-menu">
+      <button class="mini more" data-menu aria-label="Plus d'actions" aria-haspopup="true">${icon("more")}</button>
+      <div class="menu" role="menu">
+        <button data-swap="${e.id}" role="menuitem">${icon("swap")}Autre idée</button>
+        ${seenButton(e, "")}
+        <button class="danger" data-remove="${e.id}" role="menuitem">${icon("x")}Pas cette fois</button>
+      </div>
+    </div>`;
 }
 
 function renderEntry(e) {
@@ -206,7 +263,7 @@ function renderEntry(e) {
       <div class="prog-actions"><button class="mini" data-swap="${e.id}">${icon("swap")}Réessayer</button></div></div></div>`;
   }
   const eps = (e.episodes || []).map((ep) => `<li title="${esc(ep.name)}"><b>${ep.code}</b>${ep.name ? " · " + esc(ep.name) : ""}</li>`).join("");
-  return `<div class="prog ${e.audience}">
+  return `<div class="prog ${e.audience}${e.watched ? " watched" : ""}">
     <div class="prog-time"><b>${e.start}</b><span>${e.end}</span></div>
     ${cover(it, { type: true })}
     <div class="prog-body">
@@ -218,16 +275,27 @@ function renderEntry(e) {
       <p class="meta">${esc(metaLine(it))}</p>
       ${eps ? `<ul class="eps">${eps}</ul>` : ""}
       ${e.reason ? `<p class="reason">${esc(e.reason)}</p>` : ""}
-      <div class="prog-actions">
-        ${watchButton(e, "mini play")}
-        <button class="mini" data-swap="${e.id}" title="Proposer autre chose">${icon("swap")}Autre idée</button>
-        <button class="mini danger" data-remove="${e.id}" title="Retirer du programme (sans rien supprimer de la bibliothèque)">${icon("x")}Pas cette fois</button>
-      </div>
+      <div class="prog-actions">${cardActions(e)}</div>
     </div>
   </div>`;
 }
 
 $("#week").addEventListener("click", async (ev) => {
+  const menuBtn = ev.target.closest("[data-menu]");
+  if (menuBtn) {
+    ev.stopPropagation();
+    const m = menuBtn.parentElement;
+    const open = !m.classList.contains("open");
+    $$(".card-menu.open").forEach((x) => x.classList.remove("open"));
+    m.classList.toggle("open", open);
+    return;
+  }
+  const seen = ev.target.closest("[data-seen]");
+  if (seen) {
+    const res = await markSeen(seen);
+    if (res && res.week === state.week) { state.plan = res; renderWeek(); }
+    return;
+  }
   const swap = ev.target.closest("[data-swap]");
   const remove = ev.target.closest("[data-remove]");
   if (!swap && !remove) return;
@@ -253,7 +321,10 @@ $("#more-btn").onclick = (ev) => {
   ev.stopPropagation();
   $("#week-actions").classList.toggle("open");
 };
-document.addEventListener("click", () => $("#week-actions").classList.remove("open"));
+document.addEventListener("click", () => {
+  $("#week-actions").classList.remove("open");
+  $$(".card-menu.open").forEach((x) => x.classList.remove("open"));
+});
 
 $("#regen").onclick = async () => {
   if (!confirm("Refaire tout le programme de cette semaine ?")) return;
@@ -280,7 +351,7 @@ async function loadTonight() {
     renderBanner(a);
     const now = nowHHMM();
     state.tonight = [...a.entries, ...b.entries]
-      .filter((e) => e.item && (e.date > today || (e.date === today && e.end > now)))
+      .filter((e) => e.item && !e.watched && (e.date > today || (e.date === today && e.end > now)))
       .sort((x, y) => (x.date + x.start).localeCompare(y.date + y.start));
     renderTonight();
   } catch (e) {
@@ -334,6 +405,7 @@ function renderTonight() {
             ${watchButton(e, "btn big")}
             <button class="link" data-t-swap="${e.id}" data-week="${weekOf(e.date)}">Autre idée${icon("right")}</button>
             <button class="link quiet" data-t-skip="${e.id}" data-week="${weekOf(e.date)}">Pas ce soir</button>
+            ${seenButton(e, "link quiet")}
           </div>
         </div>
       </div>
@@ -348,11 +420,19 @@ function renderTonight() {
           <span class="meta">${esc(AUDIENCE[x.audience])}${x.episodes?.length ? " · " + x.episodes[0].code : ""}</span>
         </div>
       </div>`).join("")}</div>` : ""}
-    ${"wakeLock" in navigator ? `<button class="mini wake" id="wake">${icon("sun")}<span>Garder l'écran allumé</span></button>` : ""}`;
+`;
+  if ("wakeLock" in navigator) {
+    el.insertAdjacentHTML("afterbegin", `<div class="tonight-tools"><button class="mini wake" id="wake">${icon("sun")}<span>Garder l'écran allumé</span></button></div>`);
+  }
   updateWakeButton();
 }
 
 $("#tonight").addEventListener("click", async (ev) => {
+  const seen = ev.target.closest("[data-seen]");
+  if (seen) {
+    if (await markSeen(seen)) { state.plan = null; await loadTonight(); }
+    return;
+  }
   const swap = ev.target.closest("[data-t-swap]");
   const skip = ev.target.closest("[data-t-skip]");
   if (ev.target.closest("#wake")) { toggleWakeLock(); return; }
@@ -637,7 +717,7 @@ async function loadUpcoming() {
     const d = parse(date);
     return `<div><div class="day-head"><span>${dayName(date)} ${d.getDate()} ${MONTHS[d.getMonth()]}</span></div>
       <div class="up-list">${items.map((u) => `<div class="up-item">${cover(u)}<div class="txt"><strong>${esc(u.title)}</strong><span class="meta">${esc(u.detail)}</span></div>
-      <span class="badge ${u.available ? "ok" : u.kind}">${u.available ? "Disponible" : u.kind === "film" ? "Film" : "Épisode"}</span></div>`).join("")}</div>
+      <span class="badge ${u.available ? "ok" : ""}">${u.available ? "Prêt à regarder" : `Sort le ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`}</span></div>`).join("")}</div>
     </div>`;
   }).join("");
 }
@@ -818,6 +898,8 @@ function renderConnections(conn, services) {
     $("[data-status]", card).textContent = info.message;
   }
   state.jfUser = conn.jellyfin_user || "";
+  state.jfKids = conn.jellyfin_user_kids || "";
+  state.jfFamily = conn.jellyfin_user_family || "";
   $("#jf-web").value = conn.jellyfin_web_url || "";
 }
 
@@ -828,6 +910,11 @@ async function loadJellyfinUsers() {
   const names = [...new Set([...users, ...(current ? [current] : [])])];
   sel.innerHTML = `<option value="">Le premier administrateur</option>` +
     names.map((n) => `<option ${n === current ? "selected" : ""}>${esc(n)}</option>`).join("");
+  for (const [id, cur] of [["#jf-user-kids", state.jfKids], ["#jf-user-family", state.jfFamily]]) {
+    const all = [...new Set([...users, ...(cur ? [cur] : [])])];
+    $(id).innerHTML = `<option value="">Le même que les parents</option>` +
+      all.map((n) => `<option ${n === cur ? "selected" : ""}>${esc(n)}</option>`).join("");
+  }
 }
 
 async function loadConnections() {
@@ -837,7 +924,10 @@ async function loadConnections() {
 }
 
 $("#save-conn").onclick = async () => {
-  const body = { jellyfin_user: $("#jf-user").value, jellyfin_web_url: $("#jf-web").value.trim() };
+  const body = {
+    jellyfin_user: $("#jf-user").value, jellyfin_web_url: $("#jf-web").value.trim(),
+    jellyfin_user_kids: $("#jf-user-kids").value, jellyfin_user_family: $("#jf-user-family").value,
+  };
   for (const card of $$(".service-card")) {
     body[card.dataset.svc] = { url: $('[data-k="url"]', card).value.trim(), key: $('[data-k="key"]', card).value.trim() };
   }

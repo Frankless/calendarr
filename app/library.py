@@ -35,14 +35,23 @@ async def _load() -> tuple[list[dict], list[str]]:
     warnings: list[str] = []
     items: list[dict] = []
     history = {"movies": {}, "series": {}, "next_up": {}}
+    extra: dict[str, dict] = {}
     async with httpx.AsyncClient() as client:
         tasks = {}
         if Config.radarr():
             tasks["radarr"] = clients.radarr_movies(client)
         if Config.sonarr():
             tasks["sonarr"] = clients.sonarr_series(client)
+        profiles = {}
         if Config.jellyfin():
             tasks["jellyfin"] = clients.jellyfin_history(client)
+            # historiques séparés (enfants, famille) si un autre utilisateur est choisi
+            for aud in ("enfants", "famille"):
+                name = Config.profile(aud)
+                if name and name.lower() != (Config.jellyfin_user or "").lower():
+                    profiles[aud] = name
+            for name in sorted(set(profiles.values())):
+                tasks[f"jellyfin:{name}"] = clients.jellyfin_history(client, name)
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         for name, res in zip(tasks, results):
             if isinstance(res, Exception):
@@ -50,6 +59,8 @@ async def _load() -> tuple[list[dict], list[str]]:
                 warnings.append(f"{name.capitalize()} : {clients._explain(res)}")
             elif name == "jellyfin":
                 history = res
+            elif name.startswith("jellyfin:"):
+                extra[name.split(":", 1)[1]] = res
             else:
                 items.extend(res)
 
@@ -65,7 +76,26 @@ async def _load() -> tuple[list[dict], list[str]]:
             it["last_played"] = h.get("last_played")
             it["next_up"] = history["next_up"].get(it.get("tvdb", ""))
             it["jf_id"] = h.get("jf_id")
+        # ce qu'a vu chaque public qui a son propre utilisateur Jellyfin
+        it["hist"] = {}
+        for aud, name in profiles.items():
+            hx = extra.get(name)
+            if not hx:
+                continue
+            if it["kind"] == "film":
+                h = hx["movies"].get(it.get("tmdb", ""), {})
+                it["hist"][aud] = {"played": h.get("played", False), "last_played": h.get("last_played")}
+            else:
+                h = hx["series"].get(it.get("tvdb", ""), {})
+                it["hist"][aud] = {"played": h.get("played", False), "last_played": h.get("last_played"),
+                                   "next_up": hx["next_up"].get(it.get("tvdb", ""))}
     return items, warnings
+
+
+def view(item: dict, audience: str) -> dict:
+    """La fiche telle que la voit ce public (son propre « déjà vu »)."""
+    h = (item.get("hist") or {}).get(audience)
+    return item | h if h else item
 
 
 async def upcoming(start: date, days: int = 14) -> list[dict]:

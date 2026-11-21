@@ -111,6 +111,7 @@ def _days_since(iso: str | None, today: date) -> int | None:
 
 def score(item, slot, settings, ctx) -> tuple[float, str] | None:
     """Renvoie (score, raison) ou None si l'élément est à écarter."""
+    item = library.view(item, slot.get("audience", "adultes"))
     today = ctx["today"]
     rng = ctx["rng"]
     used = ctx["used"]
@@ -273,6 +274,8 @@ async def fill_episodes(plan: dict, items: list[dict], settings: dict) -> None:
     cursors: dict[str, int] = {}
     cache: dict[str, list[dict]] = {}
     for e in sorted(plan["entries"], key=lambda e: (e["date"], e["start"])):
+        if e.get("watched"):
+            continue
         e["episodes"] = []
         it = e.get("item")
         if not it or it["kind"] != "serie":
@@ -280,8 +283,11 @@ async def fill_episodes(plan: dict, items: list[dict], settings: dict) -> None:
         full = by_uid.get(it["uid"])
         if not full:
             continue
+        full = library.view(full, e.get("audience", "adultes"))
+        key = (it["uid"], e.get("audience", "adultes"))  # chaque public a sa propre progression
         if it["uid"] not in cache:
             cache[it["uid"]] = await library.episodes_for(full)
+        if key not in cursors:
             eps = cache[it["uid"]]
             nxt = full.get("next_up")
             idx = 0
@@ -290,16 +296,16 @@ async def fill_episodes(plan: dict, items: list[dict], settings: dict) -> None:
                     if (ep["season"], ep["episode"]) >= (nxt["season"], nxt["episode"]):
                         idx = i
                         break
-            cursors[it["uid"]] = idx
+            cursors[key] = idx
         eps = cache[it["uid"]]
         slot = {"max_minutes": e["max_minutes"]}
         n = episodes_count(full, slot, settings)
-        idx = cursors[it["uid"]]
+        idx = cursors[key]
         chosen = eps[idx : idx + n]
         if not chosen and eps:  # fin de la série : on recommence
             chosen = eps[:n]
             idx = 0
-        cursors[it["uid"]] = idx + len(chosen)
+        cursors[key] = idx + len(chosen)
         nxt = full.get("next_up")
         e["episodes"] = [
             {

@@ -28,7 +28,9 @@ Pour chaque créneau de votre semaine type, par exemple « mercredi 15 h 30, les
 - pour une série, la suite de là où vous en êtes, un ou deux épisodes par soir. Les épisodes très courts,
   comme les dessins animés, sont regroupés.
 
-Un jour sans créneau reste une soirée sans écran. C'est voulu : l'idée est de regarder moins, mais mieux.
+Sur chaque carte, « On l'a vu » coche le film ou les épisodes dans Jellyfin, pour le bon membre de la
+famille ; sur un programme à venir, « Déjà vu » propose autre chose. Un jour sans créneau reste une
+soirée sans écran. C'est voulu : l'idée est de regarder moins, mais mieux.
 
 « Surprends-moi » propose des cartes à swiper. Vers la droite, le titre est programmé dans le prochain
 créneau qui lui convient ; vers la gauche, il ne reviendra plus ; vers le haut, il est marqué vu ; vers
@@ -80,7 +82,8 @@ Dans Réglages → Connexions, remplissez pour chaque service :
 | Clé API Radarr | Radarr → Settings → General → Security → API Key |
 | Clé API Sonarr | Sonarr → Settings → General → Security → API Key |
 | Clé API Jellyfin | Jellyfin → Tableau de bord → Clés API → + (appelez-la « Calendarr ») |
-| Utilisateur Jellyfin | À choisir dans la liste une fois la clé enregistrée ; son historique sert pour le « déjà vu » |
+| Historique des parents | L'utilisateur Jellyfin dont le « déjà vu » sert pour les créneaux des parents |
+| Historique des enfants, de la famille | Facultatif : si les enfants ont leur propre utilisateur Jellyfin, leur « déjà vu » et leur progression dans les séries servent pour leurs créneaux |
 
 « Enregistrer et tester » fait passer les pastilles au vert et refait le programme de la semaine avec
 votre vraie bibliothèque.
