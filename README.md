@@ -7,9 +7,13 @@ votre bibliothèque (Radarr pour les films, Sonarr pour les séries), ce que vou
 (Jellyfin), et il prépare un programme pour la semaine. Le programme tient compte de l'heure à laquelle
 la soirée peut commencer et de l'âge des enfants. Il s'ajoute ensuite à votre calendrier iCloud.
 
-![Le programme de la semaine](docs/semaine.png)
+![Ce soir](docs/ce-soir.png)
 
 ## Ce que fait Calendarr
+
+- **Ce soir** : en ouvrant l'app, on voit tout de suite ce qu'on regarde maintenant, en grand, avec
+  trois boutons : **▶ Regarder** (ouvre le titre dans Jellyfin, au bon épisode pour une série en cours),
+  **Autre idée** et **Pas ce soir**. En dessous, les trois programmes suivants.
 
 - **Un programme pour chaque semaine.** Pour chaque créneau de votre semaine type (par exemple « mercredi
   15 h 30, les enfants, un film de 1 h 30 maximum »), Calendarr choisit un titre de votre bibliothèque :
@@ -110,6 +114,17 @@ adresses, par exemple `http://radarr:7878`.
 > Pour les habitués : les variables `RADARR_URL`, `RADARR_API_KEY`, `SONARR_URL`, `SONARR_API_KEY`,
 > `JELLYFIN_URL`, `JELLYFIN_API_KEY` et `JELLYFIN_USER` fonctionnent aussi. Ce qui est saisi dans l'app
 > passe avant.
+
+## Installer Calendarr comme une app (iPhone, iPad)
+
+Dans Safari, ouvrez Calendarr, touchez **Partager**, puis **Sur l'écran d'accueil**. Calendarr s'ouvre
+ensuite comme une vraie app, en plein écran, sans la barre de Safari. Sur un iPad posé dans la cuisine,
+le bouton **Garder l'écran allumé** (page Ce soir) empêche l'écran de se mettre en veille.
+
+Pour que **▶ Regarder** fonctionne depuis le téléphone, l'adresse de Jellyfin doit être joignable depuis
+celui-ci. Si l'adresse saisie dans Réglages → Connexions n'est valable que pour le NAS (par exemple
+`http://jellyfin:8096`), remplissez aussi le champ **Adresse pour ouvrir Jellyfin depuis le téléphone ou
+l'iPad**.
 
 ## Ajouter le programme à l'iPhone (iCloud)
 

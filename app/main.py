@@ -23,7 +23,7 @@ app = FastAPI(title="Calendarr", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 # Routes accessibles sans être connecté
-PUBLIC_PATHS = {"/", "/health", "/calendar.ics", "/api/auth/state", "/api/auth/login", "/api/auth/setup", "/api/auth/logout"}
+PUBLIC_PATHS = {"/", "/health", "/calendar.ics", "/sw.js", "/manifest.webmanifest", "/api/auth/state", "/api/auth/login", "/api/auth/setup", "/api/auth/logout"}
 # Routes réservées aux administrateurs
 ADMIN_ROUTES = {
     ("GET", "/api/connections"), ("PUT", "/api/connections"),
@@ -227,6 +227,8 @@ async def put_connections(data: dict = Body(...)):
             flat[f"{svc}_key"] = part["key"]
     if "jellyfin_user" in data:
         flat["jellyfin_user"] = data["jellyfin_user"]
+    if "jellyfin_web_url" in data:
+        flat["jellyfin_web_url"] = data["jellyfin_web_url"]
     Config.save(flat)
     await library.get(force=True)
     after = Config.public() | {"keys": (Config.radarr_key, Config.sonarr_key, Config.jellyfin_key)}
@@ -266,20 +268,40 @@ async def put_settings(data: dict = Body(...)):
 @app.get("/api/plan")
 async def get_plan(week: str | None = None):
     plan = await planner.get_plan(_week(week), settings.load())
-    _, warnings = await library.get()
-    return plan | {"warnings": warnings}  # l'état des connexions d'aujourd'hui, pas celui du jour de création
+    return await _decorate(plan)
+
+
+async def _decorate(plan: dict) -> dict:
+    """Ajoute ce qui change d'un jour à l'autre : le lien pour regarder,
+    l'âge conseillé et l'état des connexions (pas enregistrés dans le plan)."""
+    items, warnings = await library.get()
+    by_uid = {it["uid"]: it for it in items}
+    entries = []
+    for e in plan["entries"]:
+        e = dict(e)
+        it = e.get("item")
+        full = by_uid.get(it["uid"]) if it else None
+        if it and full:
+            e["item"] = it | {"age": planner.min_age(full)}
+            jf_id = full.get("jf_id")
+            nxt = full.get("next_up")
+            if nxt and e.get("episodes") and e["episodes"][0]["code"] == f"S{nxt['season']:02d}E{nxt['episode']:02d}":
+                jf_id = nxt.get("jf_id") or jf_id  # ouvrir directement le bon épisode
+            e["watch_url"] = Config.watch_url(jf_id)
+        entries.append(e)
+    return plan | {"entries": entries, "warnings": warnings}  # l'état des connexions d'aujourd'hui, pas celui du jour de création
 
 
 @app.post("/api/plan/regenerate")
 async def regenerate(week: str | None = None, refresh: bool = False):
     if refresh:
         await library.get(force=True)
-    return await planner.regenerate(_week(week), settings.load())
+    return await _decorate(await planner.regenerate(_week(week), settings.load()))
 
 
 @app.post("/api/plan/swap")
 async def swap(week: str, entry: str):
-    return await planner.swap(_week(week), entry, settings.load())
+    return await _decorate(await planner.swap(_week(week), entry, settings.load()))
 
 
 @app.delete("/api/plan/entry")
@@ -287,7 +309,7 @@ async def delete_entry(week: str, entry: str):
     plan = planner.remove_entry(_week(week), entry)
     if plan is None:
         raise HTTPException(404, "Programme introuvable")
-    return plan
+    return await _decorate(plan)
 
 
 @app.post("/api/plan/add")
@@ -296,10 +318,14 @@ async def add(data: dict = Body(...)):
         day = date.fromisoformat(data["date"])
     except (KeyError, ValueError) as exc:
         raise HTTPException(400, "Date invalide") from exc
-    return await planner.add_entry(
+    return await _decorate_add(
         day, str(data.get("start") or "21:00")[:5], str(data["uid"]),
         data.get("audience") or "adultes", settings.load(),
     )
+
+
+async def _decorate_add(*args):
+    return await _decorate(await planner.add_entry(*args))
 
 
 @app.get("/api/surprise")
@@ -331,6 +357,16 @@ async def calendar(token: str = ""):
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": 'inline; filename="calendarr.ics"'},
     )
+
+
+@app.get("/manifest.webmanifest")
+async def manifest():
+    return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")

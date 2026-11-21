@@ -189,7 +189,7 @@ def _pick(items, slot, settings, ctx):
 
 def _snapshot(item: dict) -> dict:
     keys = ("uid", "title", "year", "kind", "runtime", "genres", "cert", "poster", "overview", "source")
-    return {k: item.get(k) for k in keys}
+    return {k: item.get(k) for k in keys} | {"age": min_age(item)}
 
 
 def _entry(day: date, slot: dict, item: dict | None, reason: str, settings: dict) -> dict:

@@ -90,13 +90,25 @@ function cover(item, { type = false, seen = false, over = "" } = {}) {
   return `<div class="cover fake" style="background:${fakeBg(item)}">${fakeInner(item)}${extra}</div>`;
 }
 
-function metaLine(item) {
+/* Âge conseillé en clair (« Tous publics », « Dès 12 ans »), plutôt que PG-13 ou TV-MA. */
+const CERT_AGES = { "G": 0, "TV-Y": 0, "TV-G": 0, "U": 0, "AL": 0, "KT": 0, "TP": 0, "0": 0, "ALL": 0,
+  "TV-Y7": 7, "PG": 7, "6": 6, "7": 7, "TV-PG": 10, "10": 10, "PG-13": 13, "12": 12, "TV-14": 14, "13": 13,
+  "14": 14, "R": 16, "16": 16, "TV-MA": 17, "17": 17, "NC-17": 18, "18": 18 };
+function ageLabel(item) {
+  const cert = String(item.cert || "").toUpperCase().replace("+", "").trim();
+  const age = item.age ?? CERT_AGES[cert];
+  if (age === undefined || (!cert && age >= 16)) return "";
+  return age === 0 ? "Tous publics" : `Dès ${age} ans`;
+}
+
+function metaLine(item, { age = true } = {}) {
   const parts = [];
   if (item.year) parts.push(item.year);
   parts.push(item.kind === "film" ? dur(item.runtime || 0) : `épisodes de ${item.runtime || "?"} min`);
   const g = (item.genres || []).slice(0, 2).map(fr).join(", ");
   if (g) parts.push(g);
-  if (item.cert) parts.push(item.cert);
+  const a = age ? ageLabel(item) : "";
+  if (a) parts.push(a);
   return parts.join(" · ");
 }
 const neverSeen = (reason) => (reason || "").startsWith("Jamais vu");
@@ -105,6 +117,9 @@ const neverSeen = (reason) => (reason || "").startsWith("Jamais vu");
 function show(view) {
   $$("[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${view}`));
+  if (view === "tonight") loadTonight();
+  if (view === "week" && state.plan) renderWeek();
+  if (view !== "tonight") releaseWakeLock();
   if (view === "surprise" && !state.shelves.length) loadShelves();
   if (view === "upcoming") loadUpcoming();
   if (view === "settings") loadSettings();
@@ -112,13 +127,13 @@ function show(view) {
   window.scrollTo({ top: 0 });
 }
 $$("[data-view]").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
-$(".logo").addEventListener("click", (e) => { e.preventDefault(); show("week"); });
+$(".logo").addEventListener("click", (e) => { e.preventDefault(); show("tonight"); });
 
 function renderSideStatus() {
   const s = state.status;
   if (!s) return;
   $("#side-status").innerHTML = s.demo
-    ? `<div><span class="dot"></span>Mode découverte</div>`
+    ? `<div><span class="dot"></span>Exemples (bibliothèque non branchée)</div>`
     : Object.entries(s.services).map(([n, i]) =>
         `<div><span class="dot ${i.ok ? "ok" : i.configured ? "ko" : ""}"></span>${n[0].toUpperCase() + n.slice(1)}</div>`).join("");
 }
@@ -141,52 +156,25 @@ async function loadWeek(week) {
   }
 }
 
-function nextUp() {
-  const today = state.status?.today || iso(new Date());
-  const now = new Date();
-  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  return state.plan.entries.find((e) => e.item && (e.date > today || (e.date === today && e.end > hhmm)));
-}
-
-function renderHero() {
-  const e = nextUp();
-  if (!e) { $("#hero").innerHTML = ""; return; }
-  const it = e.item;
-  const today = state.status?.today || iso(new Date());
-  const when = e.date === today ? (e.start >= "18:00" ? "Ce soir" : "Aujourd'hui") : e.date === addDays(today, 1) ? "Demain" : dayName(e.date);
-  const bg = it.poster ? `background-image:url('${esc(it.poster)}')` : `background:${fakeBg(it)}`;
-  const eps = (e.episodes || []).map((ep) => `<li><b>${ep.code}</b>${ep.name ? " · " + esc(ep.name) : ""}</li>`).join("");
-  $("#hero").innerHTML = `<section class="hero">
-    <div class="hero-bg" style="${bg}"></div>
-    <div class="hero-inner">
-      ${cover(it)}
-      <div>
-        <p class="kicker">${when} · ${e.start}</p>
-        <div class="badges"><span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span><span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span>${e.label ? `<span class="badge">${esc(e.label)}</span>` : ""}</div>
-        <h2>${esc(it.title)}${it.year ? `<small>(${it.year})</small>` : ""}</h2>
-        <p class="meta">${esc(metaLine(it))}</p>
-        ${eps ? `<ul class="eps">${eps}</ul>` : ""}
-        ${e.reason ? `<p class="reason">${esc(e.reason)}</p>` : ""}
-      </div>
-    </div>
-  </section>`;
+function renderBanner(plan) {
+  const warn = (plan?.warnings || []).join(" · ");
+  const banner = $("#banner");
+  if (state.status?.demo) {
+    banner.innerHTML = isAdmin()
+      ? `Ce sont des <b>exemples</b>. <a href="#settings" data-goto="settings">Branchez Radarr, Sonarr et Jellyfin dans Réglages</a> pour voir votre bibliothèque.`
+      : `Ce sont des exemples : votre bibliothèque sera bientôt prête.`;
+    banner.hidden = false;
+  } else if (warn && isAdmin()) {
+    banner.innerHTML = `<b>Attention :</b> ${esc(warn)}`;
+    banner.hidden = false;
+  } else banner.hidden = true;
 }
 
 function renderWeek() {
   const plan = state.plan;
   const today = state.status?.today || iso(new Date());
   $("#week-title").textContent = weekTitle(plan.week);
-  const warn = (plan.warnings || []).join(" · ");
-  const banner = $("#banner");
-  if (state.status?.demo) {
-    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. ${isAdmin() ? `<a href="#settings" data-goto="settings">Ajoutez leurs adresses et clés API dans Réglages → Connexions</a>.` : "Un administrateur doit ajouter les adresses et clés API."}`;
-    banner.hidden = false;
-  } else if (warn) {
-    banner.innerHTML = `<b>Attention :</b> ${esc(warn)}`;
-    banner.hidden = false;
-  } else banner.hidden = true;
-
-  renderHero();
+  renderBanner(plan);
   const html = [];
   for (let i = 0; i < 7; i++) {
     const day = addDays(plan.week, i);
@@ -199,6 +187,11 @@ function renderWeek() {
     </article>`);
   }
   $("#week").innerHTML = html.join("");
+}
+
+function watchButton(e, cls) {
+  if (!e.watch_url) return "";
+  return `<a class="${cls}" href="${esc(e.watch_url)}" target="_blank" rel="noopener" title="Ouvrir dans Jellyfin">${icon("play")}Regarder</a>`;
 }
 
 function renderEntry(e) {
@@ -223,8 +216,9 @@ function renderEntry(e) {
       ${eps ? `<ul class="eps">${eps}</ul>` : ""}
       ${e.reason ? `<p class="reason">${esc(e.reason)}</p>` : ""}
       <div class="prog-actions">
+        ${watchButton(e, "mini play")}
         <button class="mini" data-swap="${e.id}" title="Proposer autre chose">${icon("swap")}Autre idée</button>
-        <button class="mini danger" data-remove="${e.id}" title="Retirer du programme">${icon("x")}Retirer</button>
+        <button class="mini danger" data-remove="${e.id}" title="Retirer du programme (sans rien supprimer de la bibliothèque)">${icon("x")}Pas cette fois</button>
       </div>
     </div>
   </div>`;
@@ -241,7 +235,7 @@ $("#week").addEventListener("click", async (ev) => {
       state.plan = await api(`/api/plan/swap?week=${state.week}&entry=${swap.dataset.swap}`, { method: "POST" });
     } else {
       state.plan = await api(`/api/plan/entry?week=${state.week}&entry=${remove.dataset.remove}`, { method: "DELETE" });
-      toast("Retiré du programme");
+      toast("Retiré du programme (le titre reste dans la bibliothèque)");
     }
     renderWeek();
   } catch (e) {
@@ -252,6 +246,12 @@ $("#week").addEventListener("click", async (ev) => {
 
 $("#prev-week").onclick = () => loadWeek(addDays(state.week, -7));
 $("#next-week").onclick = () => loadWeek(addDays(state.week, 7));
+$("#more-btn").onclick = (ev) => {
+  ev.stopPropagation();
+  $("#week-actions").classList.toggle("open");
+};
+document.addEventListener("click", () => $("#week-actions").classList.remove("open"));
+
 $("#regen").onclick = async () => {
   if (!confirm("Refaire tout le programme de cette semaine ?")) return;
   $("#regen").disabled = true;
@@ -263,6 +263,140 @@ $("#regen").onclick = async () => {
     $("#regen").disabled = false;
   }
 };
+
+/* ---------- Ce soir ---------- */
+const nowHHMM = () => { const n = new Date(); return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`; };
+const weekOf = (isoDate) => addDays(isoDate, -((parse(isoDate).getDay() + 6) % 7));
+
+async function loadTonight() {
+  const today = state.status?.today || iso(new Date());
+  const thisWeek = weekOf(today);
+  try {
+    const [a, b] = await Promise.all([api(`/api/plan?week=${thisWeek}`), api(`/api/plan?week=${addDays(thisWeek, 7)}`)]);
+    if (!state.plan || state.plan.week === a.week) { state.plan = a; state.week = a.week; }
+    renderBanner(a);
+    const now = nowHHMM();
+    state.tonight = [...a.entries, ...b.entries]
+      .filter((e) => e.item && (e.date > today || (e.date === today && e.end > now)))
+      .sort((x, y) => (x.date + x.start).localeCompare(y.date + y.start));
+    renderTonight();
+  } catch (e) {
+    $("#tonight").innerHTML = `<div class="loading">Impossible de charger le programme : ${esc(e.message)}</div>`;
+  }
+}
+
+function whenLabel(e) {
+  const today = state.status?.today || iso(new Date());
+  if (e.date === today) {
+    const now = nowHHMM();
+    if (e.start <= now && now < e.end) return "En ce moment";
+    if (e.start >= "18:00") return "Ce soir";
+    return e.start >= "12:00" ? "Cet après-midi" : "Ce matin";
+  }
+  if (e.date === addDays(today, 1)) return "Demain";
+  const d = parse(e.date);
+  return `${dayName(e.date)} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+
+function renderTonight() {
+  const list = state.tonight || [];
+  const el = $("#tonight");
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-tonight">
+      <h1>Rien de prévu pour l'instant</h1>
+      <p class="muted">Soirée sans écran… ou une petite surprise ?</p>
+      <button class="btn big" data-goto="surprise">${icon("surprise")}Surprends-moi</button>
+    </div>`;
+    return;
+  }
+  const [e, ...rest] = list;
+  const it = e.item;
+  const bg = it.poster ? `background-image:url('${esc(it.poster)}')` : `background:${fakeBg(it)}`;
+  const eps = (e.episodes || []).map((ep) => `<li><b>${ep.code}</b>${ep.name ? " · " + esc(ep.name) : ""}</li>`).join("");
+  const later = rest.slice(0, 3);
+  el.innerHTML = `
+    <section class="hero big">
+      <div class="hero-bg" style="${bg}"></div>
+      <div class="hero-inner">
+        ${cover(it)}
+        <div class="hero-text">
+          <p class="kicker">${whenLabel(e)} · ${e.start} – ${e.end}</p>
+          <div class="badges"><span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span><span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span>${ageLabel(it) ? `<span class="badge">${ageLabel(it)}</span>` : ""}</div>
+          <h1>${esc(it.title)}</h1>
+          <p class="meta">${esc(metaLine(it, { age: false }))}</p>
+          ${eps ? `<ul class="eps">${eps}</ul>` : ""}
+          ${e.reason ? `<p class="reason">${esc(e.reason)}</p>` : ""}
+          ${it.overview ? `<p class="overview">${esc(it.overview)}</p>` : ""}
+          <div class="hero-actions">
+            ${e.watch_url ? watchButton(e, "btn big") : ""}
+            <button class="btn big secondary" data-t-swap="${e.id}" data-week="${weekOf(e.date)}">${icon("swap")}Autre idée</button>
+            <button class="btn big ghost" data-t-skip="${e.id}" data-week="${weekOf(e.date)}">${icon("moon")}Pas ce soir</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    ${later.length ? `<div class="later-head"><h2>Ensuite</h2><button class="mini" data-goto="week">Toute la semaine ${icon("right")}</button></div>
+    <div class="later">${later.map((x) => `
+      <div class="later-card ${x.audience}">
+        ${cover(x.item)}
+        <div>
+          <p class="kicker">${whenLabel(x)} · ${x.start}</p>
+          <b>${esc(x.item.title)}</b>
+          <span class="meta">${esc(AUDIENCE[x.audience])}${x.episodes?.length ? " · " + x.episodes[0].code : ""}</span>
+        </div>
+      </div>`).join("")}</div>` : ""}
+    ${"wakeLock" in navigator ? `<button class="mini wake" id="wake">${icon("sun")}<span>Garder l'écran allumé</span></button>` : ""}`;
+  updateWakeButton();
+}
+
+$("#tonight").addEventListener("click", async (ev) => {
+  const swap = ev.target.closest("[data-t-swap]");
+  const skip = ev.target.closest("[data-t-skip]");
+  if (ev.target.closest("#wake")) { toggleWakeLock(); return; }
+  if (!swap && !skip) return;
+  const btn = swap || skip;
+  btn.disabled = true;
+  try {
+    if (swap) await api(`/api/plan/swap?week=${btn.dataset.week}&entry=${btn.dataset.tSwap}`, { method: "POST" });
+    else {
+      await api(`/api/plan/entry?week=${btn.dataset.week}&entry=${btn.dataset.tSkip}`, { method: "DELETE" });
+      toast("D'accord, pas ce soir.");
+    }
+    state.plan = null;
+    await loadTonight();
+  } catch (e) {
+    toast("Oups : " + e.message);
+    btn.disabled = false;
+  }
+});
+
+/* Écran toujours allumé (iPad posé dans la cuisine, par exemple) */
+let wakeLock = null;
+let wakeWanted = false;
+async function toggleWakeLock() {
+  wakeWanted = !wakeLock;
+  if (wakeLock) releaseWakeLock(); else await requestWakeLock();
+  updateWakeButton();
+}
+async function requestWakeLock() {
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; updateWakeButton(); });
+  } catch { toast("L'écran ne peut pas rester allumé sur cet appareil."); }
+}
+function releaseWakeLock() {
+  wakeLock?.release();
+  wakeLock = null;
+}
+function updateWakeButton() {
+  const b = $("#wake");
+  if (!b) return;
+  b.classList.toggle("on", !!wakeLock);
+  $("span", b).textContent = wakeLock ? "Écran allumé (toucher pour arrêter)" : "Garder l'écran allumé";
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && wakeWanted && !wakeLock && !$("#view-tonight").hidden) requestWakeLock().then(updateWakeButton);
+});
 
 /* ---------- calendrier ---------- */
 $("#open-cal").onclick = () => {
@@ -484,6 +618,7 @@ function renderConnections(conn, services) {
     $("[data-status]", card).textContent = info.message;
   }
   state.jfUser = conn.jellyfin_user || "";
+  $("#jf-web").value = conn.jellyfin_web_url || "";
 }
 
 async function loadJellyfinUsers() {
@@ -502,7 +637,7 @@ async function loadConnections() {
 }
 
 $("#save-conn").onclick = async () => {
-  const body = { jellyfin_user: $("#jf-user").value };
+  const body = { jellyfin_user: $("#jf-user").value, jellyfin_web_url: $("#jf-web").value.trim() };
   for (const card of $$(".service-card")) {
     body[card.dataset.svc] = { url: $('[data-k="url"]', card).value.trim(), key: $('[data-k="key"]', card).value.trim() };
   }
@@ -690,11 +825,13 @@ async function startApp() {
   } catch {
     state.status = null;
   }
-  await loadWeek();
   const view = location.hash.slice(1);
-  if (["surprise", "upcoming", "settings"].includes(view)) show(view);
-  else show("week");
+  show(["week", "surprise", "upcoming", "settings"].includes(view) ? view : "tonight");
+  if (view === "week") await loadWeek();
+  else loadWeek();
 }
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 (async function init() {
   const st = await api("/api/auth/state");

@@ -58,11 +58,13 @@ async def _load() -> tuple[list[dict], list[str]]:
             h = history["movies"].get(it.get("tmdb", ""), {})
             it["played"] = h.get("played", False)
             it["last_played"] = h.get("last_played")
+            it["jf_id"] = h.get("jf_id")
         else:
             h = history["series"].get(it.get("tvdb", ""), {})
             it["played"] = h.get("played", False)
             it["last_played"] = h.get("last_played")
             it["next_up"] = history["next_up"].get(it.get("tvdb", ""))
+            it["jf_id"] = h.get("jf_id")
     return items, warnings
 
 

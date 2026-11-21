@@ -36,6 +36,7 @@ FIELDS = {
     "jellyfin_url": "JELLYFIN_URL",
     "jellyfin_key": "JELLYFIN_API_KEY",
     "jellyfin_user": "JELLYFIN_USER",
+    "jellyfin_web_url": "JELLYFIN_PUBLIC_URL",
 }
 
 
@@ -54,7 +55,7 @@ class Config:
     Les variables d'environnement restent possibles en secours."""
 
     radarr_url = radarr_key = sonarr_url = sonarr_key = ""
-    jellyfin_url = jellyfin_key = jellyfin_user = ""
+    jellyfin_url = jellyfin_key = jellyfin_user = jellyfin_web_url = ""
 
     @classmethod
     def reload(cls) -> None:
@@ -101,7 +102,15 @@ class Config:
                 "key_hint": hint(getattr(cls, f"{svc}_key")),
             }
             for svc in ("radarr", "sonarr", "jellyfin")
-        } | {"jellyfin_user": cls.jellyfin_user}
+        } | {"jellyfin_user": cls.jellyfin_user, "jellyfin_web_url": cls.jellyfin_web_url}
+
+    @classmethod
+    def watch_url(cls, jf_id: str | None) -> str | None:
+        """Lien qui ouvre le titre dans Jellyfin, depuis le téléphone ou l'iPad."""
+        base = cls.jellyfin_web_url or cls.jellyfin_url
+        if not (jf_id and base and cls.jellyfin_key):
+            return None
+        return f"{base}/web/#/details?id={jf_id}"
 
     @classmethod
     def radarr(cls) -> bool:
@@ -357,6 +366,7 @@ async def jellyfin_history(client: httpx.AsyncClient) -> dict:
                 "played": bool(ud.get("Played")),
                 "last_played": _parse_dt(ud.get("LastPlayedDate")),
                 "progress": ud.get("PlayedPercentage") or 0,
+                "jf_id": it.get("Id"),
             }
 
     series: dict[str, dict] = {}
@@ -381,6 +391,7 @@ async def jellyfin_history(client: httpx.AsyncClient) -> dict:
                 "played": bool(ud.get("Played")),
                 "last_played": _parse_dt(ud.get("LastPlayedDate")),
                 "unplayed": ud.get("UnplayedItemCount"),
+                "jf_id": it.get("Id"),
             }
 
     next_up: dict[str, dict] = {}
@@ -400,6 +411,7 @@ async def jellyfin_history(client: httpx.AsyncClient) -> dict:
             "episode": ep.get("IndexNumber"),
             "name": ep.get("Name") or "",
             "runtime": round(ticks / 600_000_000) if ticks else None,
+            "jf_id": ep.get("Id"),
         }
     return {"movies": movies, "series": series, "next_up": next_up}
 
