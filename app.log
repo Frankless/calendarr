@@ -1,0 +1,38 @@
+INFO:     Started server process [786]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:7979 (Press CTRL+C to quit)
+INFO:     127.0.0.1:46946 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46946 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46954 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46964 - "GET /static/icon.svg HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46964 - "GET /api/auth/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46964 - "POST /api/auth/setup HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46964 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46964 - "GET /api/plan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46964 - "GET /api/users HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46946 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46954 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46954 - "GET /api/connections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46954 - "GET /api/jellyfin/users HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46954 - "POST /api/users HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46954 - "POST /api/auth/logout HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46974 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46974 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46982 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /static/icon.svg HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /api/auth/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:46998 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /api/plan HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "POST /api/plan/swap?week=2026-11-16&entry=dc2eb692c8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /static/app.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:46998 - "GET /api/auth/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46998 - "GET /api/plan HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [786]

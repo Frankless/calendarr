@@ -71,6 +71,28 @@ Les clés sont enregistrées sur le NAS, dans le dossier `config` du projet (fic
 avec vos réglages et vos programmes. L'app n'affiche jamais une clé en entier : pour en changer, collez la
 nouvelle ; laissez le champ vide pour garder l'ancienne.
 
+### 4. Les comptes
+
+Au tout premier lancement, Calendarr demande de **créer le compte administrateur** (nom et mot de passe).
+Ensuite, chaque personne se connecte avec son propre compte, et reste connectée 30 jours sur son appareil.
+
+Dans **Réglages → Comptes**, l'administrateur ajoute un compte par membre de la famille :
+
+| Rôle | Ce qu'il peut faire |
+|---|---|
+| **Administrateur** | Tout : connexions, comptes, famille, semaine type. |
+| **Famille** | Voir le programme, demander une autre idée, retirer ou programmer un titre, voir les sorties à venir, changer son propre mot de passe. |
+
+Chacun change son mot de passe dans **Mon compte**. L'administrateur peut aussi donner un nouveau mot de
+passe à quelqu'un qui l'a oublié. Changer un mot de passe déconnecte les autres appareils de ce compte.
+
+Le lien d'abonnement au calendrier (iPhone) fonctionne sans se connecter : il est protégé par sa propre
+clé secrète.
+
+**Mot de passe administrateur oublié ?** Arrêtez le projet, supprimez le fichier `config/users.json` du
+projet, puis relancez : Calendarr redemande de créer le compte administrateur. Les réglages, les
+connexions et les programmes sont conservés.
+
 ### Avec un terminal
 
 ```bash
@@ -105,9 +127,8 @@ joignable depuis Internet. Deux solutions :
 - Un **reverse proxy** (Nginx Proxy Manager, Traefik, Caddy…), si vous en avez déjà un pour Jellyfin.
   Dans ce cas, ajoutez `PUBLIC_URL: https://votre-adresse` dans la partie `environment:` du projet Docker.
 
-Le lien du calendrier contient une clé secrète. Par contre, **l'interface elle-même n'a pas de mot de
-passe**, et c'est elle qui garde vos clés API : ne l'exposez pas sur Internet sans protection (Tailscale,
-ou l'authentification de votre reverse proxy).
+Le lien du calendrier contient une clé secrète. L'interface est protégée par les comptes. Si vous l'ouvrez sur Internet, passez par
+un reverse proxy en HTTPS (ou Tailscale), et choisissez des mots de passe solides.
 
 ## Régler la semaine type
 

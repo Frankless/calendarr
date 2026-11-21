@@ -10,10 +10,10 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import ics, library, planner, settings
+from . import auth, ics, library, planner, settings
 from .clients import Config, check_connections, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -21,6 +21,151 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Calendarr", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+# Routes accessibles sans être connecté
+PUBLIC_PATHS = {"/", "/health", "/calendar.ics", "/api/auth/state", "/api/auth/login", "/api/auth/setup", "/api/auth/logout"}
+# Routes réservées aux administrateurs
+ADMIN_ROUTES = {
+    ("GET", "/api/connections"), ("PUT", "/api/connections"),
+    ("GET", "/api/jellyfin/users"),
+    ("GET", "/api/settings"), ("PUT", "/api/settings"),
+}
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    path = request.url.path
+    if path in PUBLIC_PATHS or path.startswith("/static/"):
+        return await call_next(request)
+    # protection CSRF : les modifications doivent venir de l'app elle-même
+    if request.method not in ("GET", "HEAD") and request.headers.get("x-calendarr") != "1":
+        return JSONResponse({"detail": "Requête refusée"}, status_code=403)
+    user = auth.read_session(request.cookies.get(auth.COOKIE))
+    if not user:
+        return JSONResponse({"detail": "Connexion requise"}, status_code=401)
+    is_admin_route = (request.method, path) in ADMIN_ROUTES or path.startswith("/api/users")
+    if is_admin_route and user["role"] != "admin":
+        return JSONResponse({"detail": "Réservé aux administrateurs"}, status_code=403)
+    request.state.user = user
+    return await call_next(request)
+
+
+def _set_cookie(request: Request, response: Response, user: dict) -> None:
+    response.set_cookie(
+        auth.COOKIE, auth.make_session(user),
+        max_age=auth.SESSION_DAYS * 86400, httponly=True, samesite="lax",
+        secure=request.url.scheme == "https", path="/",
+    )
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "?"
+
+
+def _fail(message: str, code: int = 400):
+    raise HTTPException(code, message)
+
+
+@app.get("/api/auth/state")
+async def auth_state(request: Request):
+    user = auth.read_session(request.cookies.get(auth.COOKIE))
+    return {"setup_needed": not auth.has_users(), "user": auth.public(user) if user else None}
+
+
+@app.post("/api/auth/setup")
+async def auth_setup(request: Request, data: dict = Body(...)):
+    """Création du premier compte (administrateur). Possible une seule fois."""
+    if request.headers.get("x-calendarr") != "1":
+        _fail("Requête refusée", 403)
+    if auth.has_users():
+        _fail("Un compte existe déjà.", 403)
+    try:
+        auth.create_user(data.get("username", ""), data.get("password", ""), "admin")
+    except ValueError as exc:
+        _fail(str(exc))
+    user = auth.verify(data["username"], data["password"])
+    response = JSONResponse({"user": auth.public(user)})
+    _set_cookie(request, response, user)
+    return response
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request, data: dict = Body(...)):
+    if request.headers.get("x-calendarr") != "1":
+        _fail("Requête refusée", 403)
+    ip = _client_ip(request)
+    wait = auth.too_many_attempts(ip)
+    if wait:
+        _fail(f"Trop d'essais. Réessayez dans {wait} secondes.", 429)
+    user = auth.verify(data.get("username", ""), data.get("password", ""))
+    if not user:
+        auth.record_failure(ip)
+        _fail("Nom d'utilisateur ou mot de passe incorrect.", 401)
+    auth.clear_failures(ip)
+    response = JSONResponse({"user": auth.public(user)})
+    _set_cookie(request, response, user)
+    return response
+
+
+@app.post("/api/auth/logout")
+async def auth_logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(auth.COOKIE, path="/")
+    return response
+
+
+@app.post("/api/auth/password")
+async def auth_password(request: Request, data: dict = Body(...)):
+    """Changer son propre mot de passe (l'ancien est demandé)."""
+    me = request.state.user
+    if not auth.verify(me["username"], data.get("current", "")):
+        _fail("Le mot de passe actuel est incorrect.")
+    try:
+        user = auth.set_password(me["id"], data.get("password", ""))
+    except ValueError as exc:
+        _fail(str(exc))
+    response = JSONResponse({"ok": True})
+    _set_cookie(request, response, user)  # cet appareil reste connecté
+    return response
+
+
+@app.get("/api/users")
+async def users_list():
+    return {"users": auth.list_users(), "roles": auth.ROLES}
+
+
+@app.post("/api/users")
+async def users_create(data: dict = Body(...)):
+    try:
+        auth.create_user(data.get("username", ""), data.get("password", ""), data.get("role", "famille"))
+    except ValueError as exc:
+        _fail(str(exc))
+    return {"users": auth.list_users()}
+
+
+@app.put("/api/users/{user_id}")
+async def users_update(user_id: str, request: Request, data: dict = Body(...)):
+    try:
+        if data.get("role"):
+            if user_id == request.state.user["id"] and data["role"] != "admin":
+                _fail("Vous ne pouvez pas retirer vos propres droits d'administrateur.")
+            auth.set_role(user_id, data["role"])
+        if data.get("password"):
+            auth.set_password(user_id, data["password"])
+    except ValueError as exc:
+        _fail(str(exc))
+    return {"users": auth.list_users()}
+
+
+@app.delete("/api/users/{user_id}")
+async def users_delete(user_id: str, request: Request):
+    if user_id == request.state.user["id"]:
+        _fail("Vous ne pouvez pas supprimer votre propre compte.")
+    try:
+        auth.delete_user(user_id)
+    except ValueError as exc:
+        _fail(str(exc))
+    return {"users": auth.list_users()}
 
 
 def _calendar_token() -> str:

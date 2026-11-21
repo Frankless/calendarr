@@ -27,7 +27,7 @@ const FREE_LINES = [
 ];
 const icon = (id) => `<svg><use href="#i-${id}"/></svg>`;
 
-const state = { status: null, week: null, plan: null, settings: null, meta: null, pick: null, shelves: [] };
+const state = { user: null, started: false, status: null, week: null, plan: null, settings: null, meta: null, pick: null, shelves: [] };
 
 /* ---------- utilitaires ---------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -39,10 +39,24 @@ const dur = (min) => (min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).
 const dayName = (isoDate) => DAYS[(parse(isoDate).getDay() + 6) % 7];
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "X-Calendarr": "1", ...(opts.headers || {}) },
+    credentials: "same-origin",
+  });
+  if (res.status === 401 && !path.startsWith("/api/auth/")) {
+    showAuth("login", "Votre session a expiré : reconnectez-vous.");
+    throw new Error("Connexion requise");
+  }
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).detail || msg; } catch { /* réponse non JSON */ }
+    throw new Error(msg);
+  }
   return res.json();
 }
+
+const isAdmin = () => state.user?.role === "admin";
 
 function toast(msg) {
   const t = $("#toast");
@@ -165,7 +179,7 @@ function renderWeek() {
   const warn = (plan.warnings || []).join(" · ");
   const banner = $("#banner");
   if (state.status?.demo) {
-    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. <a href="#settings" data-goto="settings">Ajoutez leurs adresses et clés API dans Réglages → Connexions</a>.`;
+    banner.innerHTML = `<b>Mode découverte.</b> Radarr et Sonarr ne sont pas encore branchés : vous voyez une bibliothèque d'exemple. ${isAdmin() ? `<a href="#settings" data-goto="settings">Ajoutez leurs adresses et clés API dans Réglages → Connexions</a>.` : "Un administrateur doit ajouter les adresses et clés API."}`;
     banner.hidden = false;
   } else if (warn) {
     banner.innerHTML = `<b>Attention :</b> ${esc(warn)}`;
@@ -345,6 +359,9 @@ function timeOptions(value) {
 const readTime = (v) => v.replace(" h ", ":");
 
 async function loadSettings() {
+  renderAccount();
+  if (!isAdmin()) return;
+  loadUsers();
   const [meta, status] = await Promise.all([api("/api/settings"), api("/api/status")]);
   state.status = status;
   state.meta = meta;
@@ -518,8 +535,155 @@ document.addEventListener("click", (ev) => {
   if (go) { ev.preventDefault(); show(go.dataset.goto); }
 });
 
+/* ---------- comptes ---------- */
+function renderAccount() {
+  const u = state.user;
+  if (!u) return;
+  $("#user-name").textContent = u.username;
+  $("#user-role").textContent = u.role_label;
+  $("#user-avatar").textContent = u.username.slice(0, 1).toUpperCase();
+  $("#me-line").textContent = `Connecté en tant que ${u.username} (${u.role_label.toLowerCase()}).`;
+  document.body.classList.toggle("is-admin", isAdmin());
+  $("#settings-sub").textContent = isAdmin()
+    ? "Votre compte, les comptes de la famille, les connexions et la semaine type."
+    : "Votre compte. Les réglages du programme sont gérés par un administrateur.";
+  $$('[data-view="settings"]').forEach((b) => (b.lastChild.textContent = isAdmin() ? "Réglages" : "Mon compte"));
+  $("#view-settings .page-head h1").textContent = isAdmin() ? "Réglages" : "Mon compte";
+}
+
+async function loadUsers() {
+  const { users } = await api("/api/users");
+  renderUsers(users);
+}
+
+function renderUsers(users) {
+  $("#users-list").innerHTML = users.map((u) => `
+    <div class="user-row" data-id="${u.id}">
+      <span class="avatar">${esc(u.username.slice(0, 1).toUpperCase())}</span>
+      <b>${esc(u.username)}${u.id === state.user.id ? ' <small class="muted">(vous)</small>' : ""}</b>
+      <select data-role ${u.id === state.user.id ? "disabled" : ""} aria-label="Rôle de ${esc(u.username)}">
+        <option value="famille" ${u.role === "famille" ? "selected" : ""}>Famille</option>
+        <option value="admin" ${u.role === "admin" ? "selected" : ""}>Administrateur</option>
+      </select>
+      ${u.id === state.user.id ? "<span></span><span></span>" : `
+      <button type="button" class="mini" data-reset>Nouveau mot de passe</button>
+      <button type="button" class="mini danger" data-delete aria-label="Supprimer ${esc(u.username)}">${icon("x")}</button>`}
+    </div>`).join("");
+}
+
+$("#users-list").addEventListener("change", async (ev) => {
+  const sel = ev.target.closest("[data-role]");
+  if (!sel) return;
+  const id = sel.closest(".user-row").dataset.id;
+  try {
+    renderUsers((await api(`/api/users/${id}`, { method: "PUT", body: JSON.stringify({ role: sel.value }) })).users);
+    toast("Rôle modifié");
+  } catch (e) { toast(e.message); loadUsers(); }
+});
+
+$("#users-list").addEventListener("click", async (ev) => {
+  const row = ev.target.closest(".user-row");
+  if (!row) return;
+  const id = row.dataset.id, name = $("b", row).textContent;
+  try {
+    if (ev.target.closest("[data-reset]")) {
+      const pw = prompt(`Nouveau mot de passe pour ${name} (6 caractères minimum) :`);
+      if (!pw) return;
+      await api(`/api/users/${id}`, { method: "PUT", body: JSON.stringify({ password: pw }) });
+      toast(`Mot de passe de ${name} changé. Ses appareils devront se reconnecter.`);
+    } else if (ev.target.closest("[data-delete]")) {
+      if (!confirm(`Supprimer le compte de ${name} ?`)) return;
+      renderUsers((await api(`/api/users/${id}`, { method: "DELETE" })).users);
+      toast("Compte supprimé");
+    }
+  } catch (e) { toast(e.message); }
+});
+
+$("#user-add").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try {
+    const res = await api("/api/users", {
+      method: "POST",
+      body: JSON.stringify({ username: $("#nu-name").value, password: $("#nu-pass").value, role: $("#nu-role").value }),
+    });
+    renderUsers(res.users);
+    toast(`Compte « ${$("#nu-name").value.trim()} » créé`);
+    $("#user-add").reset();
+  } catch (e) { toast(e.message); }
+});
+
+$("#pw-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if ($("#pw-new").value !== $("#pw-confirm").value) { toast("Les deux nouveaux mots de passe ne correspondent pas."); return; }
+  try {
+    await api("/api/auth/password", { method: "POST", body: JSON.stringify({ current: $("#pw-current").value, password: $("#pw-new").value }) });
+    $("#pw-form").reset();
+    toast("Mot de passe changé. Vos autres appareils devront se reconnecter.");
+  } catch (e) { toast(e.message); }
+});
+
+async function logout() {
+  await api("/api/auth/logout", { method: "POST" }).catch(() => {});
+  state.user = null;
+  showAuth("login");
+}
+$("#logout").onclick = logout;
+$("#logout2").onclick = logout;
+
+/* ---------- écran de connexion ---------- */
+function showAuth(mode, message = "") {
+  state.authMode = mode;
+  const setup = mode === "setup";
+  $("#app").hidden = true;
+  $("#bottom-nav").hidden = true;
+  $("#auth").hidden = false;
+  $("#auth-title").textContent = setup ? "Bienvenue !" : "Connexion";
+  $("#auth-sub").textContent = setup
+    ? "Créez le compte administrateur. Vous pourrez ensuite ajouter un compte pour chaque membre de la famille."
+    : "Connectez-vous pour voir le programme de la famille.";
+  $("#auth-confirm-row").hidden = !setup;
+  $("#auth-confirm").required = setup;
+  $("#auth-pass").autocomplete = setup ? "new-password" : "current-password";
+  $("#auth-btn").textContent = setup ? "Créer le compte" : "Se connecter";
+  $("#auth-error").textContent = message;
+  $("#auth-error").hidden = !message;
+  $("#auth-pass").value = "";
+  $("#auth-confirm").value = "";
+  setTimeout(() => $("#auth-user").focus(), 50);
+}
+
+$("#auth-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const setup = state.authMode === "setup";
+  const err = $("#auth-error");
+  err.hidden = true;
+  if (setup && $("#auth-pass").value !== $("#auth-confirm").value) {
+    err.textContent = "Les deux mots de passe ne correspondent pas.";
+    err.hidden = false;
+    return;
+  }
+  $("#auth-btn").disabled = true;
+  try {
+    const res = await api(setup ? "/api/auth/setup" : "/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username: $("#auth-user").value, password: $("#auth-pass").value }),
+    });
+    state.user = res.user;
+    await startApp();
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    $("#auth-btn").disabled = false;
+  }
+});
+
 /* ---------- démarrage ---------- */
-(async function init() {
+async function startApp() {
+  $("#auth").hidden = true;
+  $("#app").hidden = false;
+  $("#bottom-nav").hidden = false;
+  renderAccount();
   try {
     state.status = await api("/api/status");
     renderSideStatus();
@@ -529,4 +693,15 @@ document.addEventListener("click", (ev) => {
   await loadWeek();
   const view = location.hash.slice(1);
   if (["surprise", "upcoming", "settings"].includes(view)) show(view);
+  else show("week");
+}
+
+(async function init() {
+  const st = await api("/api/auth/state");
+  if (st.user) {
+    state.user = st.user;
+    await startApp();
+  } else {
+    showAuth(st.setup_needed ? "setup" : "login");
+  }
 })();

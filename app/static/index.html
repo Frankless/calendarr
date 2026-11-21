@@ -13,6 +13,18 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div id="auth" class="auth" hidden>
+    <form class="auth-card" id="auth-form" autocomplete="on">
+      <div class="auth-logo"><img src="/static/icon.svg" alt="" width="52" height="52"><span>Calendarr</span></div>
+      <h1 id="auth-title">Connexion</h1>
+      <p id="auth-sub" class="muted"></p>
+      <label class="field">Nom d'utilisateur<input id="auth-user" name="username" autocomplete="username" required></label>
+      <label class="field">Mot de passe<input id="auth-pass" name="password" type="password" autocomplete="current-password" required></label>
+      <label class="field" id="auth-confirm-row" hidden>Confirmer le mot de passe<input id="auth-confirm" type="password" autocomplete="new-password"></label>
+      <p id="auth-error" class="auth-error" hidden></p>
+      <button class="btn auth-btn" id="auth-btn">Se connecter</button>
+    </form>
+  </div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-week" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/></symbol>
     <symbol id="i-surprise" viewBox="0 0 24 24"><path d="M10 3.5l1.6 4.4L16 9.5l-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z"/><path d="M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
@@ -23,10 +35,12 @@
     <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
     <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4.5h3.5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H14M10 16l4-4-4-4M14 12H4.5"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.2-3.2 3.8-5 7-5s5.8 1.8 7 5"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9"/></symbol>
   </svg>
 
-  <div class="layout">
+  <div class="layout" id="app" hidden>
     <aside class="sidebar">
       <a class="logo" href="#week">
         <img src="/static/icon.svg" alt="" width="36" height="36">
@@ -38,7 +52,14 @@
         <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
         <button data-view="settings"><svg><use href="#i-settings"/></svg>Réglages</button>
       </nav>
-      <div class="side-status" id="side-status"></div>
+      <div class="side-bottom">
+        <div class="side-status" id="side-status"></div>
+        <div class="side-user">
+          <span class="avatar" id="user-avatar"></span>
+          <div><b id="user-name"></b><small id="user-role"></small></div>
+          <button class="icon-btn" id="logout" title="Se déconnecter" aria-label="Se déconnecter"><svg><use href="#i-logout"/></svg></button>
+        </div>
+      </div>
     </aside>
 
     <div class="content">
@@ -87,10 +108,32 @@
 
         <!-- RÉGLAGES -->
         <section id="view-settings" class="view" hidden>
-          <div class="page-head"><div><h1>Réglages</h1><p>La famille, le rythme et la semaine type.</p></div></div>
+          <div class="page-head"><div><h1>Réglages</h1><p id="settings-sub">Votre compte, les connexions, la famille et la semaine type.</p></div></div>
 
           <div class="settings">
-            <div class="set-section" id="connections">
+            <div class="set-section">
+              <div class="set-title"><h2>Mon compte</h2><p id="me-line"></p></div>
+              <form class="set-fields" id="pw-form" autocomplete="off">
+                <label class="row"><span>Mot de passe actuel</span><input id="pw-current" type="password" autocomplete="current-password" required></label>
+                <label class="row"><span>Nouveau mot de passe</span><input id="pw-new" type="password" autocomplete="new-password" minlength="6" required></label>
+                <label class="row"><span>Confirmer</span><input id="pw-confirm" type="password" autocomplete="new-password" minlength="6" required></label>
+                <div class="conn-actions"><button class="btn secondary" id="logout2" type="button"><svg><use href="#i-logout"/></svg>Se déconnecter</button><button class="btn" type="submit"><svg><use href="#i-check"/></svg>Changer le mot de passe</button></div>
+              </form>
+            </div>
+
+            <div class="set-section admin-only">
+              <div class="set-title"><h2>Comptes</h2><p>Les <b>administrateurs</b> ont accès à tout. Les comptes <b>Famille</b> voient le programme, peuvent demander une autre idée et programmer un titre, mais pas changer les réglages.</p></div>
+              <div class="users">
+                <div id="users-list" class="users-list"></div>
+                <form class="user-add" id="user-add" autocomplete="off">
+                  <input id="nu-name" placeholder="Nom" required maxlength="40" aria-label="Nom du nouveau compte">
+                  <input id="nu-pass" type="password" placeholder="Mot de passe (6 caractères min.)" minlength="6" required autocomplete="new-password" aria-label="Mot de passe du nouveau compte">
+                  <select id="nu-role" aria-label="Rôle"><option value="famille">Famille</option><option value="admin">Administrateur</option></select>
+                  <button class="btn" type="submit">+ Ajouter</button>
+                </form>
+              </div>
+            </div>
+            <div class="set-section admin-only" id="connections">
               <div class="set-title"><h2>Connexions</h2><p>L'adresse de chaque service (celle que vous tapez dans le navigateur) et sa clé API. Si tout tourne sur le même NAS, mettez l'adresse IP du NAS, pas « localhost ».</p></div>
               <div class="services">
                 <div class="service-card" data-svc="radarr">
@@ -115,7 +158,7 @@
               </div>
             </div>
 
-            <div class="set-section">
+            <div class="set-section admin-only">
               <div class="set-title"><h2>La famille</h2><p>Calendarr lit la classification des films et séries (G, PG, Tous publics, 12…). Avec 7, un film « PG » passe ; un « PG-13 » non.</p></div>
               <div class="set-fields">
                 <label class="row"><span>Âge des enfants</span><input id="s-children" type="text" placeholder="8, 4"></label>
@@ -124,7 +167,7 @@
               </div>
             </div>
 
-            <div class="set-section">
+            <div class="set-section admin-only">
               <div class="set-title"><h2>Le rythme</h2><p>Pour les dessins animés très courts (moins de 20 min), Calendarr remplit le créneau jusqu'à 6 épisodes.</p></div>
               <div class="set-fields">
                 <label class="row"><span>Épisodes max. par soirée</span><input id="s-eps" type="number" min="1" max="6"></label>
@@ -133,23 +176,23 @@
               </div>
             </div>
 
-            <div class="set-section">
+            <div class="set-section admin-only">
               <div class="set-title"><h2>Les goûts</h2><p>Touchez un genre : une fois pour l'aimer, deux fois pour l'éviter, trois fois pour revenir au neutre.</p></div>
               <div id="s-genres" class="chips"></div>
             </div>
 
-            <div class="set-section">
+            <div class="set-section admin-only">
               <div class="set-title"><h2>La semaine type</h2><p>Les créneaux où Calendarr propose quelque chose. Un jour sans créneau = soirée sans écran.</p></div>
               <div id="s-week" class="week-editor"></div>
             </div>
           </div>
-          <div class="savebar"><button class="btn" id="save"><svg><use href="#i-check"/></svg>Enregistrer</button></div>
+          <div class="savebar admin-only"><button class="btn" id="save"><svg><use href="#i-check"/></svg>Enregistrer</button></div>
         </section>
       </main>
     </div>
   </div>
 
-  <nav class="bottom-nav">
+  <nav class="bottom-nav" id="bottom-nav" hidden>
     <button data-view="week" class="active"><svg><use href="#i-week"/></svg>Semaine</button>
     <button data-view="surprise"><svg><use href="#i-surprise"/></svg>Surprise</button>
     <button data-view="upcoming"><svg><use href="#i-upcoming"/></svg>À venir</button>
