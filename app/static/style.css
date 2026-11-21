@@ -784,3 +784,22 @@ a.mini { text-decoration: none; }
 .sc-info .badge.film, .sc-info .badge.serie { border: 0; background: none; padding-left: 0; }
 .swipe-card .stamp { z-index: 4; }
 .swipe-card .sc-img { background-position: center top; }
+
+/* ---------- Autre idée : liste de propositions ---------- */
+.dialog.alt { max-width: 640px; }
+.alt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; max-height: 60vh; overflow: auto; }
+.alt-item {
+  display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; text-align: left;
+  padding: 10px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); cursor: pointer; font: inherit;
+}
+.alt-item:hover { border-color: var(--accent); }
+.alt-item:disabled { opacity: .5; cursor: default; }
+.alt-item .cover { width: 56px; }
+.alt-item .cover.fake b { font-size: 9px; }
+.alt-item .cover.fake small, .alt-item .cover .type { display: none; }
+.alt-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.alt-text b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alt-text small { color: var(--text-2); font-size: 12px; }
+.alt-text em { color: var(--accent-text); font-style: normal; font-size: 12px; }
+@media (max-width: 768px) { .alt-list { grid-template-columns: 1fr; } }

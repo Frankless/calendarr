@@ -598,3 +598,56 @@ def mark_seen_locally(uid: str) -> None:
                 changed = True
         if changed:
             save_plan(plan)
+
+
+# --------------------------------------------------------------------------- #
+# « Autre idée » : plusieurs propositions pour un créneau, au choix
+# --------------------------------------------------------------------------- #
+
+def _slot_of(entry: dict) -> dict:
+    return {"start": entry["start"], "max_minutes": entry["max_minutes"], "audience": entry["audience"],
+            "kind": entry["slot_kind"], "label": entry["label"]}
+
+
+async def alternatives(start: date, entry_id: str, settings: dict, n: int = 6) -> dict:
+    """Les meilleures propositions pour ce créneau, sans ce qui est déjà au programme."""
+    plan = await get_plan(start, settings)
+    target = next((e for e in plan["entries"] if e["id"] == entry_id), None)
+    if not target:
+        return {"entry": None, "items": []}
+    items, _ = await library.get()
+    current = (target.get("item") or {}).get("uid")
+    skipped = set(target.get("skipped") or [])  # ce qu'on vient d'écarter (« Déjà vu », « Au hasard »)
+    used = {e["item"]["uid"] for e in plan["entries"] if e.get("item") and e["id"] != entry_id}
+    slot = _slot_of(target)
+    ctx = {"today": date.today(), "rng": random.Random(), "used": used | ({current} if current else set()),
+           "new_episodes": set(), "fb": feedback.summary()}
+    scored = []
+    for it in items:
+        if it["uid"] == current or it["uid"] in skipped or not fits(it, slot, settings):
+            continue
+        res = score(it, slot, settings, ctx)
+        if res:
+            scored.append((res[0], it, res[1]))
+    scored.sort(key=lambda x: -x[0])
+    return {
+        "entry": {"id": target["id"], "date": target["date"], "start": target["start"], "label": target["label"],
+                  "audience": target["audience"], "title": (target.get("item") or {}).get("title")},
+        "items": [dict(_snapshot(it), reason=r) for _, it, r in scored[:n]],
+    }
+
+
+async def replace(start: date, entry_id: str, uid: str, settings: dict) -> dict:
+    """Met le titre choisi dans ce créneau."""
+    plan = await get_plan(start, settings)
+    items, _ = await library.get()
+    target = next((e for e in plan["entries"] if e["id"] == entry_id), None)
+    item = next((it for it in items if it["uid"] == uid), None)
+    if not target or not item:
+        return plan
+    new = _entry(date.fromisoformat(target["date"]), _slot_of(target), item, "Choisi par vous", settings)
+    new["id"] = target["id"]
+    plan["entries"] = [new if e["id"] == entry_id else e for e in plan["entries"]]
+    await fill_episodes(plan, items, settings)
+    save_plan(plan)
+    return plan

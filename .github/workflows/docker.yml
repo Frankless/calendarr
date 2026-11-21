@@ -1,10 +1,10 @@
-# Construit l'image Docker de Calendarr et la publie sur GitHub (ghcr.io/frankless/calendarr).
+# Builds the Calendarr Docker image and publishes it on GitHub (ghcr.io/frankless/calendarr).
 #
-# - À chaque modification de main : image « edge » (pour tester avant une version).
-# - Pour publier une version : onglet Actions → « Image Docker » → « Run workflow », puis saisir le
-#   numéro (ex. 0.1.0). Le workflow publie les images « latest », « 0.1.0 » et « 0.1 », crée le tag
-#   v0.1.0 et la page de version (release) avec la liste des changements.
-#   Pousser soi-même un tag v0.1.0 fait la même chose.
+# - On every change to main: the "edge" image (to test before a release).
+# - To publish a release: Actions tab → "Image Docker" → "Run workflow", then enter the number
+#   (e.g. 0.1.0). The workflow publishes the "latest", "0.1.0" and "0.1" images, creates the v0.1.0
+#   tag and the GitHub release with the list of changes.
+#   Pushing a v0.1.0 tag yourself does the same.
 name: Image Docker
 
 on:
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Numéro de la version à publier, sans le v (ex. 0.1.0). Vide = simple image edge."
+        description: "Version number to publish, without the v (e.g. 0.1.0). Empty = just an edge image."
         required: false
         default: ""
 
@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Numéro de version
+      - name: Version number
         id: v
         env:
           INPUT: ${{ inputs.version }}
@@ -39,7 +39,7 @@ jobs:
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#v}"
           else V=""; fi
           if [ -n "$V" ] && ! echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Numéro de version invalide : $V (attendu : 1.2.3)"; exit 1
+            echo "Invalid version number: $V (expected: 1.2.3)"; exit 1
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "minor=${V%.*}" >> "$GITHUB_OUTPUT"
@@ -88,7 +88,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Créer le tag et la page de version
+      - name: Create the tag and the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.build.outputs.tag }}

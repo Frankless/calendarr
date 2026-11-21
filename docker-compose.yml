@@ -1,7 +1,7 @@
 # Calendarr
-# Sur un NAS (UGOS, Synology, QNAP…) : créez un « Projet » Docker et collez ce
-# fichier tel quel. Les adresses et clés API de Radarr, Sonarr et Jellyfin se
-# saisissent ensuite dans l'app : Réglages → Connexions.
+# On a NAS (UGOS, Synology, QNAP…): create a Docker "Project" and paste this file
+# as is. Radarr, Sonarr and Jellyfin addresses and API keys are then entered in
+# the app: Réglages → Connexions (Settings → Connections).
 services:
   calendarr:
     image: ghcr.io/frankless/calendarr:latest

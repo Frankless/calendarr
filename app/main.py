@@ -543,11 +543,22 @@ async def plan_watched(request: Request, week: str, entry: str):
         title = (new.get("item") or {}).get("title")
         message = (f"Déjà vu : on propose « {title} » à la place." if title and title != full["title"]
                    else "Déjà vu : rien d'autre ne convient pour ce créneau.")
-    return (await _decorate(out)) | {"message": message}
+    return (await _decorate(out)) | {"message": message, "film": full["kind"] == "film", "entry": entry}
 
 
 def _deck_for(audience: str) -> str:
     return {"enfants": "famille", "famille": "famille"}.get(audience, "nous")
+
+
+@app.get("/api/plan/alternatives")
+async def plan_alternatives(week: str, entry: str):
+    return await planner.alternatives(_week(week), entry, settings.load())
+
+
+@app.post("/api/plan/replace")
+async def plan_replace(data: dict = Body(...)):
+    plan = await planner.replace(_week(str(data.get("week", ""))), str(data.get("entry", "")), str(data.get("uid", "")), settings.load())
+    return await _decorate(plan)
 
 
 @app.post("/api/plan/swap")

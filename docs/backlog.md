@@ -1,126 +1,125 @@
-# Calendarr : backlog
+# Calendarr: backlog
 
-Le but, c'est que l'épouse approuve. Le mercredi après-midi, elle ouvre l'app sur l'iPad, le téléphone ou
-l'écran de la cuisine, comprend en deux secondes ce qu'on regarde, et le lance.
+The goal is spouse approval. On a Wednesday afternoon, she opens the app on the iPad, the phone or the
+kitchen screen, understands in two seconds what's on, and starts it.
 
-Ce qui est décidé (21 novembre 2026) : l'app doit marcher sur le PC, l'iPhone, l'iPad et l'écran
-d'assistant de la cuisine ; la famille regarde avec Infuse sur l'Apple TV ; l'âge s'affiche simplement
-(« Tous publics », « Dès 12 ans »).
+Decided on 21 November 2026: the app must work on the PC, the iPhone, the iPad and the kitchen smart
+display; the family watches with Infuse on Apple TV; ages are shown simply ("Tous publics", "Dès 12
+ans", i.e. "All ages", "12 and up").
 
-## Fait
+## Done
 
-- [x] Page d'accueil « Ce soir » : le prochain programme en grand, avec « ▶ Regarder », « Autre idée » et
-  « Pas ce soir », puis les trois suivants.
-- [x] « ▶ Regarder » sur chaque carte. Selon le réglage, il ouvre Jellyfin, ouvre Infuse sur l'appareil
-  (`infuse://`), ou indique où trouver le titre et l'épisode dans Infuse sur l'Apple TV.
-- [x] App installable sur l'écran d'accueil (PWA), en plein écran sur iOS, avec l'option de garder l'écran
-  allumé.
-- [x] Textes en français partout : âge conseillé, « Pas cette fois », bandeau simplifié pour la famille.
-- [x] Sur téléphone, les actions de la semaine sont dans un menu ⋯ et les cartes sont compactes ; sur grand
-  écran, les cartes de la semaine prennent toute la largeur.
-- [x] Écran de cuisine (`/mur`) : lien secret, lecture seule, horloge, « Ce soir » et la suite, mise à jour
-  automatique, toutes tailles d'écran.
-- [x] Une collection Jellyfin par semaine (« Calendarr · Semaine du 23 novembre ») avec ce qui reste à voir.
-  Les jours passés en sortent et l'ancienne semaine est supprimée le lundi.
-- [x] Comptes et rôles (administrateur, famille), connexions saisies dans l'app.
-- [x] Relecture de sécurité (v0.1.0) : conteneur sans root, clé redemandée si l'adresse d'un service
-  change, limite d'essais par appareil et par compte, jetons masqués dans les journaux, en-têtes de
-  sécurité, dépendances à jour.
-- [x] Versions publiées sur GitHub : `latest` suit la dernière version stable, `edge` la branche main.
+- [x] "Ce soir" (Tonight) home page: the next program in large, with "▶ Regarder" (Watch), "Autre idée"
+  (Another idea) and "Pas ce soir" (Not tonight), then the next three.
+- [x] "▶ Regarder" on every card. Depending on the setting, it opens Jellyfin, opens Infuse on the device
+  (`infuse://`), or tells you where to find the title and episode in Infuse on Apple TV.
+- [x] Installable app (PWA), full screen on iOS, with an option to keep the screen on.
+- [x] French everywhere in the app: recommended age, "Pas cette fois", a simpler banner for the family.
+- [x] On phones, week actions are in a ⋯ menu and cards are compact; on large screens, week cards use the
+  full width.
+- [x] Kitchen screen (`/mur`): secret link, read only, clock, Tonight and what's next, auto refresh, any
+  screen size.
+- [x] One Jellyfin collection per week ("Calendarr · Semaine du 23 novembre") with what is left to watch.
+  Past days drop out and the previous week's collection is deleted on Monday.
+- [x] Accounts and roles (administrator, family), connections entered in the app.
+- [x] Security review (v0.1.0): non-root container, API key cleared when a service address changes, login
+  rate limits per device and per account, secret tokens hidden from logs, security headers, updated
+  dependencies.
+- [x] Releases on GitHub: `latest` follows the latest stable version, `edge` the main branch.
 
-## P1 : surprise et retour d'information
+## P1: surprise and feedback
 
-- [x] « Surprends-moi » en swipe (v0.2.0), aussi utilisable avec des boutons ou le clavier, avec
-  annulation du dernier choix. Vers la droite, le titre va dans le prochain créneau compatible ; vers la
-  gauche, il n'est plus jamais proposé ; vers le haut, il est marqué vu (un film l'est aussi dans
-  Jellyfin) ; vers le bas, il revient dans deux semaines.
-- [x] Match à deux : chacun swipe sur son compte, et si deux personnes disent oui, le film est programmé
-  et rejoint « Vos matchs ».
-- [x] Mémoire des choix, lue par le planificateur : un « non » écarte le titre, un « oui » le favorise.
-- [x] Un utilisateur Jellyfin par public (parents, enfants, famille) : chaque public a son propre « déjà
-  vu » et sa propre progression dans les séries.
-- [x] « Vu » sur les cartes de la semaine et de Ce soir. Pour un programme d'aujourd'hui ou passé, « On
-  l'a vu » coche le film ou les épisodes dans Jellyfin, pour le bon utilisateur. Pour un programme à
-  venir, « Déjà vu » remplace le film par une autre idée, ou passe aux épisodes suivants d'une série.
-- [x] Retours d'usage du 21 novembre : la semaine s'ouvre sur aujourd'hui avec les jours passés repliés,
-  une seule action visible par carte (le reste dans « … »), affiche pleine carte dans le swipe avec le
-  texte sur fond sombre, « À venir » à partir d'aujourd'hui (« Prêt à regarder », « Sort le 24 nov. »),
-  « Garder l'écran allumé » en haut de Ce soir, boutons du swipe plus grands.
+- [x] Swipeable "Surprends-moi" (Surprise me), also usable with buttons or the keyboard, with undo. Right:
+  the title goes into the next suitable slot. Left: never suggested again. Up: marked as watched (a movie
+  is also marked in Jellyfin). Down: it comes back in two weeks.
+- [x] Match for two: each parent swipes on their own account; when both say yes, the movie is scheduled
+  and added to "Vos matchs" (Your matches).
+- [x] Memory of choices, used by the planner: a "no" rules a title out, a "yes" favors it.
+- [x] One Jellyfin user per audience (parents, kids, family): each audience has its own watch history and
+  series progress.
+- [x] "Vu" (Watched) on week and Tonight cards. For today or a past day, "On l'a vu" (We watched it) marks
+  the movie or episodes as watched in Jellyfin for the right user. For an upcoming program, "Déjà vu"
+  (Already seen) replaces a movie, or moves a series on to the next episodes.
+- [x] Feedback from 21 November: the week opens on today with past days folded, one visible action per
+  card (the rest in "…"), full-bleed poster in the swipe deck with the text on a solid dark background,
+  "À venir" (Coming up) starts today ("Prêt à regarder" / "Sort le 24 nov."), "Garder l'écran allumé"
+  (Keep the screen on) at the top of Tonight, bigger swipe buttons.
+- [x] "Autre idée" opens a list of suggestions for the slot (or "Au hasard", at random); marking a movie as
+  watched opens the same list to pick something else. Series episodes and upcoming releases are cached
+  for 10 minutes, so the button responds faster.
 
-## P2 : Jellyfin et Infuse
+## P2: Jellyfin and Infuse
 
-- [ ] Lien de lecture dans l'événement du calendrier iCloud.
-- [ ] Vérifier sur l'Apple TV que la collection de la semaine apparaît bien dans Infuse.
-- [ ] Tester les liens `infuse://` (films, séries, épisodes) sur l'iPhone et l'iPad.
-- [ ] Servir les jaquettes depuis Jellyfin, sur le NAS, avec un cache, plutôt que depuis Internet (TMDB).
+- [ ] Playback link in the iCloud calendar event.
+- [ ] Check on the Apple TV that the weekly collection shows up in Infuse.
+- [ ] Test `infuse://` links (movies, series, episodes) on iPhone and iPad.
+- [ ] Serve posters from Jellyfin on the NAS, with a cache, instead of from the Internet (TMDB).
 
-## Sécurité, plus tard
+## Security, later
 
-- [ ] Protéger la création du premier compte, par exemple avec un code affiché dans les journaux du
-  conteneur.
-- [ ] Épingler les actions GitHub par empreinte (SHA) plutôt que par numéro de version.
-- [ ] Une politique de sécurité du contenu (CSP) stricte. Il faudra d'abord sortir le JavaScript des
-  attributs HTML.
+- [ ] Protect first-account creation, for example with a code printed in the container logs.
+- [ ] Pin GitHub Actions by commit SHA rather than by version tag.
+- [ ] A strict Content Security Policy. This first requires moving JavaScript out of HTML attributes.
 
-## P3 : plus tard
+## P3: later
 
-- [ ] Seerr : proposer des titres absents de la bibliothèque et les demander d'un geste.
-- [ ] Langue audio : écarter les titres sans piste française pour les enfants.
-- [ ] Notification 15 minutes avant (ntfy ou notification web), en plus de l'alarme du calendrier.
-- [ ] Statistiques de la famille : temps d'écran prévu, soirées sans écran tenues.
+- [ ] Seerr: suggest titles that aren't in the library and request them in one tap.
+- [ ] Audio language: leave out titles without a French audio track for the kids.
+- [ ] Notification 15 minutes before (ntfy or web push), in addition to the calendar alarm.
+- [ ] Family statistics: planned screen time, screen-free evenings kept.
 
-## Idée : sorties cinéma et rattrapage (21 novembre 2026)
+## Idea: movie releases and catching up (21 November 2026)
 
-Suivre les sorties au cinéma et proposer ce qu'il faut voir ou revoir avant, pour arriver à jour.
-*Avengers: Doomsday* et *Dune: Part Three* sont par exemple annoncés pour le 18 décembre 2026 aux
-États-Unis ; la date belge se lit dans TMDB (région BE).
+Follow upcoming theatrical releases and suggest what to watch or rewatch beforehand, so the family is up
+to date. *Avengers: Doomsday* and *Dune: Part Three*, for example, are announced for 18 December 2026 in
+the US; the Belgian date is in TMDB (region BE).
 
-### Principe
+### How it would work
 
-Une vue « Au cinéma bientôt » montre, pour chaque sortie qui intéresse la famille, un compte à rebours
-(J-27) et les titres à voir avant. Chaque titre est soit déjà vu (d'après Jellyfin), soit dans la
-bibliothèque et à voir, soit absent, avec alors un bouton « Demander » (ajout dans Radarr ou demande
-Seerr).
+A new "Au cinéma bientôt" (In theaters soon) view shows, for each release the family cares about, a
+countdown (D-27) and the titles to watch first. Each title is either already watched (according to
+Jellyfin), in the library and still to watch, or missing, in which case a "Demander" (Request) button adds
+it to Radarr or sends a Seerr request.
 
-« Programmer le rattrapage » place les titres manquants dans les créneaux libres avant la sortie, en
-respectant la durée, le public et l'âge. Pour Dune, ça donnerait deux films d'environ 2 h 30 : la grande
-première du jeudi à 21 h et la soirée ciné du samedi.
+"Programmer le rattrapage" (Schedule the catch-up) puts the missing titles into the free slots before the
+release, respecting length, audience and age. For Dune, that would be two movies of about 2 h 30: the
+Thursday 9 pm "grande première" and the Saturday movie night.
 
-La sortie elle-même s'ajoute au calendrier (« 🎬 Sortie : … »), avec un rappel pour réserver les places.
+The release itself is added to the calendar ("🎬 Sortie : …"), with a reminder to book tickets.
 
-### Sources de données
+### Data sources
 
-TMDB demande une clé API, gratuite, à saisir dans Réglages → Connexions comme les autres :
+TMDB needs an API key (free), entered in Settings → Connections like the others:
 
-- `GET /movie/upcoming` ou `/discover/movie` avec `region=BE` et le type de sortie 2 ou 3 (salles) pour la
-  liste. « upcoming » renvoie parfois des films déjà sortis ou des ressorties : il faut filtrer par date ;
-- `release_dates` d'un film pour la date belge ;
-- `belongs_to_collection`, puis `/collection/{id}`, pour la saga.
+- `GET /movie/upcoming` or `/discover/movie` with `region=BE` and release type 2 or 3 (theatrical) for the
+  list. "upcoming" sometimes returns movies already out or re-releases, so filter by date;
+- a movie's `release_dates` for the Belgian date;
+- `belongs_to_collection`, then `/collection/{id}`, for the franchise.
 
-Radarr et Sonarr servent déjà pour « À venir », mais ne connaissent que les films suivis ; TMDB couvre
-aussi les autres. Jellyfin donne l'historique « déjà vu » et permet de lancer la lecture.
+Radarr and Sonarr already power "À venir", but they only know the movies you follow; TMDB covers the
+others too. Jellyfin provides the watch history and playback.
 
-### Les titres à voir avant
+### Titles to watch first
 
-1. Les films précédents de la même saga, trouvés automatiquement dans la collection TMDB (*Dune: Part
-   Three* amène *Dune* et *Dune: Part Two*).
-2. Une liste choisie par l'administrateur, dans un écran de Réglages ou un fichier `prepa.json`, pour les
-   univers sans collection claire. Pour Marvel, on choisit soi-même les films qui comptent avant
-   *Avengers: Doomsday* : l'app ne devine pas d'« ordre officiel ».
-3. Pour une nouvelle saison de série, revoir la précédente (Sonarr, et « À suivre » dans Jellyfin).
+1. Earlier movies of the same franchise, found automatically in the TMDB collection (*Dune: Part Three*
+   brings *Dune* and *Dune: Part Two*).
+2. A list chosen by the administrator, in a Settings screen or a `prepa.json` file, for universes without
+   a clear collection. For Marvel, you pick the movies that matter before *Avengers: Doomsday* yourself:
+   the app doesn't guess an "official order".
+3. For a new season of a series, rewatch the previous one (Sonarr, and "Next Up" in Jellyfin).
 
-### Règles de l'interface
+### Interface rules
 
-- Seules les sorties marquées « J'irai le voir » donnent un plan de rattrapage, sinon l'écran serait
-  noyé sous les blockbusters.
-- Un titre déjà vu est coché et n'est pas reproposé.
-- Pour un film que personne n'a envie de revoir, un « Résumé rapide » pourrait renvoyer vers un résumé
-  (reste à définir).
-- Dans le swipe, une rangée « Pour se mettre à jour ».
+- Only releases marked "J'irai le voir" (I'll go see it) get a catch-up plan; otherwise the screen would
+  drown in blockbusters.
+- A title already watched is ticked and not suggested again.
+- For a movie nobody wants to rewatch, a "Résumé rapide" (Quick recap) could link to a summary (to be
+  defined).
+- In the swipe deck, a "Pour se mettre à jour" (To catch up) row.
 
-### À trancher
+### To decide
 
-- [ ] Quels films et séries suivre ? Pour commencer : *Avengers: Doomsday* et *Dune: Part Three*.
-- [ ] Qui décide « J'irai le voir » : chaque compte, ou l'administrateur seul ?
-- [ ] Le rattrapage se place-t-il tout seul dans le planning, ou reste-t-il une suggestion à valider ?
-- [ ] Les films absents s'ajoutent-ils directement dans Radarr, ou passent-ils par une demande Seerr ?
+- [ ] Which movies and series to follow? To start: *Avengers: Doomsday* and *Dune: Part Three*.
+- [ ] Who decides "J'irai le voir": each account, or only the administrator?
+- [ ] Is the catch-up placed in the schedule automatically, or only suggested for approval?
+- [ ] Are missing movies added straight to Radarr, or requested through Seerr?

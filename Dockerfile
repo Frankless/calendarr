@@ -9,10 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PGID=1000 \
     APP_VERSION=${VERSION} \
     FORWARDED_ALLOW_IPS=127.0.0.1
-# FORWARDED_ALLOW_IPS : n'écouter les en-têtes X-Forwarded-* que d'un reverse proxy de confiance
+# FORWARDED_ALLOW_IPS: only trust X-Forwarded-* headers from a known reverse proxy
 
 LABEL org.opencontainers.image.title="Calendarr" \
-      org.opencontainers.image.description="Le programme télé de la famille, à partir de Radarr, Sonarr et Jellyfin" \
+      org.opencontainers.image.description="A family TV schedule built from Radarr, Sonarr and Jellyfin" \
       org.opencontainers.image.source="https://github.com/Frankless/calendarr" \
       org.opencontainers.image.version="${VERSION}"
 

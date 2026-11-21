@@ -25,6 +25,8 @@ async def get(force: bool = False) -> tuple[list[dict], list[str]]:
             return _cache["items"], _cache["warnings"]
         items, warnings = await _load()
         _cache.update(at=time.time(), items=items, warnings=warnings)
+        if force:
+            clear_caches()
         return items, warnings
 
 
@@ -99,6 +101,16 @@ def view(item: dict, audience: str) -> dict:
 
 
 async def upcoming(start: date, days: int = 14) -> list[dict]:
+    key = (start, days)
+    hit = _upcoming_cache.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    out = await _upcoming(start, days)
+    _upcoming_cache[key] = (time.time(), out)
+    return out
+
+
+async def _upcoming(start: date, days: int) -> list[dict]:
     end = start + timedelta(days=days)
     if Config.demo():
         return demo.upcoming(start)
@@ -118,12 +130,26 @@ async def upcoming(start: date, days: int = 14) -> list[dict]:
     return out
 
 
+_episodes_cache: dict[int, tuple[float, list[dict]]] = {}
+_upcoming_cache: dict[tuple, tuple[float, list[dict]]] = {}
+
+
+def clear_caches() -> None:
+    _episodes_cache.clear()
+    _upcoming_cache.clear()
+
+
 async def episodes_for(item: dict) -> list[dict]:
-    """Liste ordonnée des épisodes disponibles d'une série."""
+    """Liste ordonnée des épisodes disponibles d'une série (gardée 10 minutes)."""
     if item.get("source") == "sonarr" and Config.sonarr():
+        hit = _episodes_cache.get(item["sonarr_id"])
+        if hit and time.time() - hit[0] < CACHE_SECONDS:
+            return hit[1]
         try:
             async with httpx.AsyncClient() as client:
-                return await clients.sonarr_episodes(client, item["sonarr_id"])
+                eps = await clients.sonarr_episodes(client, item["sonarr_id"])
+            _episodes_cache[item["sonarr_id"]] = (time.time(), eps)
+            return eps
         except Exception as exc:  # noqa: BLE001
             log.warning("Épisodes indisponibles pour %s : %s", item["title"], exc)
             return []

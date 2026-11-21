@@ -225,11 +225,79 @@ function seenButton(e, cls) {
     : `<button class="${cls}" data-seen="${e.id}" data-week="${weekOf(e.date)}" title="Coché aussi dans Jellyfin">${icon("check")}On l'a vu</button>`;
 }
 
+/* « Autre idée » : plusieurs propositions pour ce créneau, au choix */
+state.alt = null;
+async function openAlternatives(week, entryId, { afterSeen = false } = {}) {
+  state.alt = { week, entryId };
+  const dlg = $("#alt-dialog");
+  $("#alt-title").textContent = afterSeen ? "Vu ! On regarde autre chose ?" : "Autre chose ?";
+  $("#alt-sub").textContent = "";
+  $("#alt-list").innerHTML = `<p class="muted">Je cherche des idées…</p>`;
+  if (!dlg.open) dlg.showModal();
+  try {
+    const res = await api(`/api/plan/alternatives?week=${week}&entry=${entryId}`);
+    const e = res.entry;
+    if (e) {
+      const d = parse(e.date);
+      $("#alt-sub").textContent = `${dayName(e.date)} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} à ${e.start.replace(":", " h ")} · ${AUDIENCE[e.audience]}${e.label ? " · " + e.label : ""}`;
+    }
+    $("#alt-list").innerHTML = res.items.length
+      ? res.items.map((it) => `<button type="button" class="alt-item" data-uid="${esc(it.uid)}">
+          ${cover(it)}
+          <span class="alt-text"><b>${esc(it.title)}</b><small>${esc(metaLine(it))}</small>${it.reason ? `<em>${esc(it.reason)}</em>` : ""}</span>
+        </button>`).join("")
+      : `<p class="muted">Rien d'autre ne convient à ce créneau dans la bibliothèque.</p>`;
+  } catch (err) {
+    $("#alt-list").innerHTML = `<p class="muted">Impossible de charger les idées : ${esc(err.message)}</p>`;
+  }
+}
+
+async function afterPlanChange(res) {
+  $("#alt-dialog").close();
+  state.plan = null;
+  if (!$("#view-week").hidden) {
+    if (res && res.week === state.week) { state.plan = res; renderWeek(); } else await loadWeek(state.week);
+  } else await loadTonight();
+}
+
+$("#alt-list").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-uid]");
+  if (!b || !state.alt) return;
+  $$("#alt-list button").forEach((x) => (x.disabled = true));
+  try {
+    const res = await api("/api/plan/replace", { method: "POST", body: JSON.stringify({ week: state.alt.week, entry: state.alt.entryId, uid: b.dataset.uid }) });
+    toast(`« ${$("b", b).textContent} » est au programme.`);
+    await afterPlanChange(res);
+  } catch (err) {
+    toast("Oups : " + err.message);
+    $$("#alt-list button").forEach((x) => (x.disabled = false));
+  }
+});
+$("#alt-random").onclick = async () => {
+  if (!state.alt) return;
+  $("#alt-random").disabled = true;
+  try {
+    const res = await api(`/api/plan/swap?week=${state.alt.week}&entry=${state.alt.entryId}`, { method: "POST" });
+    const e = res.entries.find((x) => x.id === state.alt.entryId);
+    toast(e?.item ? `« ${e.item.title} » est au programme.` : "Rien d'autre ne convient pour ce créneau.");
+    await afterPlanChange(res);
+  } catch (err) {
+    toast("Oups : " + err.message);
+  } finally {
+    $("#alt-random").disabled = false;
+  }
+};
+$("#alt-close").onclick = () => $("#alt-dialog").close();
+
 async function markSeen(btn) {
   btn.disabled = true;
   try {
     const res = await api(`/api/plan/watched?week=${btn.dataset.week}&entry=${btn.dataset.seen}`, { method: "POST" });
     toast(res.message);
+    const e = res.entries.find((x) => x.id === res.entry);
+    if (res.film && e && (e.watched || e.date > (state.status?.today || ""))) {
+      setTimeout(() => openAlternatives(btn.dataset.week, res.entry, { afterSeen: true }), 150);
+    }
     return res;
   } catch (e) {
     toast("Oups : " + e.message);
@@ -296,22 +364,22 @@ $("#week").addEventListener("click", async (ev) => {
     if (res && res.week === state.week) { state.plan = res; renderWeek(); }
     return;
   }
-  const swap = ev.target.closest("[data-swap]");
+  const alt = ev.target.closest("[data-swap]");
+  if (alt) {
+    $$(".card-menu.open").forEach((x) => x.classList.remove("open"));
+    openAlternatives(state.week, alt.dataset.swap);
+    return;
+  }
   const remove = ev.target.closest("[data-remove]");
-  if (!swap && !remove) return;
-  const btn = swap || remove;
-  btn.disabled = true;
+  if (!remove) return;
+  remove.disabled = true;
   try {
-    if (swap) {
-      state.plan = await api(`/api/plan/swap?week=${state.week}&entry=${swap.dataset.swap}`, { method: "POST" });
-    } else {
-      state.plan = await api(`/api/plan/entry?week=${state.week}&entry=${remove.dataset.remove}`, { method: "DELETE" });
-      toast("Retiré du programme (le titre reste dans la bibliothèque)");
-    }
+    state.plan = await api(`/api/plan/entry?week=${state.week}&entry=${remove.dataset.remove}`, { method: "DELETE" });
+    toast("Retiré du programme (le titre reste dans la bibliothèque)");
     renderWeek();
   } catch (e) {
     toast("Oups : " + e.message);
-    btn.disabled = false;
+    remove.disabled = false;
   }
 });
 
@@ -433,23 +501,20 @@ $("#tonight").addEventListener("click", async (ev) => {
     if (await markSeen(seen)) { state.plan = null; await loadTonight(); }
     return;
   }
-  const swap = ev.target.closest("[data-t-swap]");
+  const alt = ev.target.closest("[data-t-swap]");
+  if (alt) { openAlternatives(alt.dataset.week, alt.dataset.tSwap); return; }
   const skip = ev.target.closest("[data-t-skip]");
   if (ev.target.closest("#wake")) { toggleWakeLock(); return; }
-  if (!swap && !skip) return;
-  const btn = swap || skip;
-  btn.disabled = true;
+  if (!skip) return;
+  skip.disabled = true;
   try {
-    if (swap) await api(`/api/plan/swap?week=${btn.dataset.week}&entry=${btn.dataset.tSwap}`, { method: "POST" });
-    else {
-      await api(`/api/plan/entry?week=${btn.dataset.week}&entry=${btn.dataset.tSkip}`, { method: "DELETE" });
-      toast("D'accord, pas ce soir.");
-    }
+    await api(`/api/plan/entry?week=${skip.dataset.week}&entry=${skip.dataset.tSkip}`, { method: "DELETE" });
+    toast("D'accord, pas ce soir.");
     state.plan = null;
     await loadTonight();
   } catch (e) {
     toast("Oups : " + e.message);
-    btn.disabled = false;
+    skip.disabled = false;
   }
 });
 
