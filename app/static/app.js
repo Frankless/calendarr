@@ -72,8 +72,7 @@ function hue(text) {
   return h;
 }
 function fakeBg(item) {
-  const h = hue(item.title || "");
-  return `linear-gradient(160deg,hsl(${h} 45% 38%),hsl(${(h + 50) % 360} 55% 16%))`;
+  return "linear-gradient(160deg,#3a342e,#26221e)";
 }
 function fakeInner(item) {
   return `<b>${esc(item.title)}</b><small>${item.year || ""}</small>`;
@@ -201,17 +200,17 @@ function watchButton(e, cls) {
 function renderEntry(e) {
   const it = e.item;
   if (!it) {
-    return `<div class="prog ${e.audience}" style="grid-template-columns:1fr"><div class="prog-body">
-      <div class="prog-top"><span class="time">${e.start}</span><span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span><span>${esc(e.label)}</span></div>
+    return `<div class="prog ${e.audience}" style="grid-template-columns:56px 1fr"><div class="prog-time"><b>${e.start}</b></div><div class="prog-body">
+      <div class="prog-top"><span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span><span>${esc(e.label)}</span></div>
       <p class="reason">${esc(e.reason)}</p>
       <div class="prog-actions"><button class="mini" data-swap="${e.id}">${icon("swap")}Réessayer</button></div></div></div>`;
   }
   const eps = (e.episodes || []).map((ep) => `<li title="${esc(ep.name)}"><b>${ep.code}</b>${ep.name ? " · " + esc(ep.name) : ""}</li>`).join("");
   return `<div class="prog ${e.audience}">
+    <div class="prog-time"><b>${e.start}</b><span>${e.end}</span></div>
     ${cover(it, { type: true })}
     <div class="prog-body">
       <div class="prog-top">
-        <span class="time">${e.start} – ${e.end}</span>
         <span class="badge ${e.audience}">${esc(AUDIENCE[e.audience])}</span>
         ${e.label ? `<span>${esc(e.label)}</span>` : ""}
       </div>
@@ -333,8 +332,8 @@ function renderTonight() {
           ${it.overview ? `<p class="overview">${esc(it.overview)}</p>` : ""}
           <div class="hero-actions">
             ${watchButton(e, "btn big")}
-            <button class="btn big secondary" data-t-swap="${e.id}" data-week="${weekOf(e.date)}">${icon("swap")}Autre idée</button>
-            <button class="btn big ghost" data-t-skip="${e.id}" data-week="${weekOf(e.date)}">${icon("moon")}Pas ce soir</button>
+            <button class="link" data-t-swap="${e.id}" data-week="${weekOf(e.date)}">Autre idée${icon("right")}</button>
+            <button class="link quiet" data-t-skip="${e.id}" data-week="${weekOf(e.date)}">Pas ce soir</button>
           </div>
         </div>
       </div>
@@ -526,7 +525,7 @@ async function decide(decision) {
     state.lastDeck = state.deckKey;
     setTimeout(renderDeck, 220);
     if (res.match) showMatch(res);
-    else if (decision === "yes") toast(res.placed ? `♥ Programmé ${res.placed.when}` : state.deckKey === "nous" ? "♥ Noté ! Si l'autre dit oui aussi, c'est un match." : "♥ Noté : il passera en priorité.");
+    else if (decision === "yes") toast(res.placed ? `Programmé ${res.placed.when}` : state.deckKey === "nous" ? "Noté ! Si l'autre dit oui aussi, c'est un match." : "Noté : il passera en priorité.");
     else if (decision === "seen") toast(res.jellyfin ? "Marqué vu, aussi dans Jellyfin." : "Marqué vu : il ne sera plus proposé.");
     else toast(SWIPE_MSG[decision]);
     if (state.cards.length < 4) refillDeck();
@@ -581,7 +580,7 @@ function renderMatches(list) {
   const el = $("#matches");
   if (state.deckKey !== "nous" || !list.length) { el.innerHTML = ""; return; }
   state.matchList = list;
-  el.innerHTML = `<div class="later-head"><h2>Vos matchs ♥</h2></div>
+  el.innerHTML = `<div class="later-head"><h2>Vos matchs</h2></div>
     <div class="slider-row">${list.map((it, i) => `
       <button class="title-card" data-match="${i}" aria-label="${esc(it.title)}">
         ${cover(it, { type: true, over: `<div class="over"><small>${it.year || ""}</small><b>${esc(it.title)}</b><i>Toucher pour choisir le soir</i></div>` })}
@@ -599,7 +598,7 @@ function openPick(it, audience) {
   $("#pick-badges").innerHTML = `<span class="badge ${it.kind}">${it.kind === "film" ? "Film" : "Série"}</span>`;
   $("#pick-title").textContent = it.title;
   $("#pick-meta").textContent = metaLine(it);
-  $("#pick-reason").textContent = "Un match ♥";
+  $("#pick-reason").textContent = "Un match";
   $("#pick-reason").hidden = false;
   $("#pick-overview").textContent = it.overview || "";
   $("#pick-overview").hidden = !it.overview;
@@ -854,7 +853,7 @@ $("#save-conn").onclick = async () => {
     const ok = Object.values(res.services).filter((x) => x.ok).length;
     const configured = Object.values(res.services).filter((x) => x.configured).length;
     toast(configured === 0 ? "Enregistré. Mode découverte."
-      : ok === configured ? "Connexions enregistrées et testées ✓"
+      : ok === configured ? "Connexions enregistrées et testées"
       : "Enregistré, mais une connexion ne répond pas : voir le message rouge.");
     await loadWeek();
   } catch (e) {
