@@ -8,11 +8,12 @@ import logging
 import os
 import re
 import secrets
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, compose, feedback, ics, library, planner, settings, watchstate
@@ -224,9 +225,20 @@ def _week(value: str | None) -> date:
         raise HTTPException(400, "Date invalide") from exc
 
 
+# Chaque version change l'adresse de app.js et style.css (?v=…), pour que le
+# navigateur (Safari surtout) ne garde pas l'ancienne interface après une mise à jour.
+ASSET_VERSION = os.environ.get("APP_VERSION") or str(int(time.time()))
+
+
+def _page(name: str) -> HTMLResponse:
+    html = (STATIC / name).read_text(encoding="utf-8")
+    html = re.sub(r'(/static/[\w.-]+\.(?:js|css))"', rf'\1?v={ASSET_VERSION}"', html)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/")
 async def index():
-    return FileResponse(STATIC / "index.html")
+    return _page("index.html")
 
 
 @app.get("/api/status")
@@ -446,7 +458,7 @@ async def wall_link_reset(request: Request):
 
 @app.get("/mur")
 async def wall_page():
-    return FileResponse(STATIC / "wall.html")
+    return _page("wall.html")
 
 
 @app.get("/api/wall")
