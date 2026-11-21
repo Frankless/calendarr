@@ -72,6 +72,7 @@ class Config:
     def save(cls, data: dict) -> None:
         """Enregistre les connexions. Une clé laissée vide garde l'ancienne."""
         current = {f: getattr(cls, f) for f in FIELDS}
+        before = dict(current)
         for field in FIELDS:
             if field not in data or data[field] is None:
                 continue
@@ -79,6 +80,13 @@ class Config:
             if field.endswith("_key") and not value:
                 continue  # champ laissé vide : on garde la clé déjà enregistrée
             current[field] = value
+        # Sécurité : si l'adresse d'un service change, l'ancienne clé n'est pas
+        # envoyée au nouveau serveur ; il faut la saisir à nouveau.
+        for svc in ("radarr", "sonarr", "jellyfin"):
+            url_changed = current[f"{svc}_url"] != before[f"{svc}_url"] and before[f"{svc}_url"]
+            new_key = _clean(f"{svc}_key", data.get(f"{svc}_key"))
+            if url_changed and not new_key:
+                current[f"{svc}_key"] = ""
         # sans adresse, la clé ne sert à rien : on l'efface
         for svc in ("radarr", "sonarr", "jellyfin"):
             if not current[f"{svc}_url"]:
@@ -139,7 +147,10 @@ Config.reload()
 def _poster(images: list[dict] | None) -> str | None:
     for img in images or []:
         if img.get("coverType") == "poster":
-            return img.get("remoteUrl") or None
+            url = img.get("remoteUrl") or ""
+            if url.startswith(("https://", "http://")) and not any(c in url for c in "'\"()<> \\"):
+                return url
+            return None
     return None
 
 

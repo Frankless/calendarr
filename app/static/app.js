@@ -136,6 +136,7 @@ function renderSideStatus() {
     ? `<div><span class="dot"></span>Exemples (bibliothèque non branchée)</div>`
     : Object.entries(s.services).map(([n, i]) =>
         `<div><span class="dot ${i.ok ? "ok" : i.configured ? "ko" : ""}"></span>${n[0].toUpperCase() + n.slice(1)}</div>`).join("");
+  $("#side-status").insertAdjacentHTML("beforeend", `<div class="version">Calendarr ${esc(s.version || "")}</div>`);
 }
 
 /* ---------- semaine ---------- */

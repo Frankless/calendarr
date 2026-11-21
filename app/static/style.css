@@ -593,3 +593,5 @@ body { padding-top: env(safe-area-inset-top); }
 .wall-link .hint { margin: 0; }
 .wall-link .conn-actions { justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
 a.mini { text-decoration: none; }
+
+.side-status .version { color: var(--gray-500); font-size: 11px; margin-top: 2px; }

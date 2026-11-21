@@ -39,8 +39,17 @@ indigo, menu latéral, jaquettes avec badges.
 
 ## Installation
 
-Calendarr est publié sous forme d'image Docker prête à l'emploi : `ghcr.io/frankless/calendarr:latest`
-(processeurs Intel/AMD et ARM). Pas besoin de terminal : l'interface Docker de votre NAS suffit.
+Calendarr est publié sous forme d'image Docker prête à l'emploi (processeurs Intel/AMD et ARM). Pas
+besoin de terminal : l'interface Docker de votre NAS suffit.
+
+| Image | Pour qui |
+|---|---|
+| `ghcr.io/frankless/calendarr:latest` | La dernière version stable. **C'est celle à utiliser.** |
+| `ghcr.io/frankless/calendarr:0.1` | Rester sur la série 0.1 (corrections seulement). |
+| `ghcr.io/frankless/calendarr:edge` | La toute dernière modification, pour tester avant une version. |
+
+Les nouveautés de chaque version sont sur la page
+[Releases](https://github.com/Frankless/calendarr/releases).
 
 ### 1. Créer le projet
 
@@ -215,6 +224,23 @@ Vos réglages et vos programmes sont gardés dans le dossier `config/`.
 | « Rien ne correspond » sur un créneau | La durée maximum est trop courte, ou l'âge maximum trop bas, ou tout a déjà été vu. Élargissez le créneau dans les Réglages. |
 | Le NAS refuse de télécharger l'image (« unauthorized ») | Sur GitHub, ouvrez le paquet `calendarr` (onglet **Packages** de votre profil) → **Package settings** → **Change visibility** → **Public**. |
 | Voir ce qui se passe | Le journal (« Logs ») du conteneur dans l'interface Docker, ou `docker logs calendarr` |
+
+## Sécurité
+
+- **Créez le compte administrateur tout de suite après l'installation** : tant qu'il n'existe pas, la
+  première personne qui ouvre Calendarr sur votre réseau peut le créer.
+- Mots de passe de 8 caractères minimum, chiffrés de façon irréversible. Après 5 erreurs depuis un même
+  appareil, ou 20 sur un même compte, il faut attendre 5 minutes.
+- Les clés API restent sur le NAS et ne sont jamais renvoyées en entier au navigateur. Si l'adresse d'un
+  service change, sa clé doit être saisie à nouveau : elle n'est jamais envoyée à une autre adresse.
+- Dans le conteneur, Calendarr ne tourne pas en root. Par défaut, il utilise l'utilisateur `1000:1000` ;
+  pour en choisir un autre, ajoutez `PUID` et `PGID` dans la partie `environment:` du projet.
+- **Derrière un reverse proxy** (Nginx Proxy Manager, Traefik, Caddy…), ajoutez
+  `FORWARDED_ALLOW_IPS: <adresse IP du proxy>` dans `environment:`, pour que Calendarr voie l'adresse réelle
+  des visiteurs. Sans proxy, ne mettez rien.
+- Ne publiez pas Calendarr sur Internet sans HTTPS ; Tailscale reste la solution la plus simple.
+- Vous avez trouvé un problème de sécurité ? Ouvrez une issue sans détail public, ou contactez le
+  propriétaire du dépôt.
 
 ## Et ensuite ?
 

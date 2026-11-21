@@ -26,7 +26,7 @@ SECRET_FILE = CONFIG_DIR / "secret_key"
 COOKIE = "calendarr_session"
 SESSION_DAYS = 30
 ROLES = {"admin": "Administrateur", "famille": "Famille"}
-MIN_PASSWORD = 6
+MIN_PASSWORD = 8
 
 _lock = threading.Lock()
 
@@ -214,21 +214,27 @@ def read_session(token: str | None) -> dict | None:
 # --------------------------------------------------------------------------- #
 
 _failures: dict[str, list[float]] = {}
+LIMITS = {"ip": 5, "user": 20}  # échecs tolérés en 5 minutes
 
 
-def too_many_attempts(ip: str) -> int:
-    """Renvoie le nombre de secondes à attendre (0 si on peut essayer)."""
+def too_many_attempts(ip: str, username: str = "") -> int:
+    """Renvoie le nombre de secondes à attendre (0 si on peut essayer).
+    Limite par appareil (5 essais) et par compte (20 essais, tous appareils)."""
     now = time.time()
-    recent = [t for t in _failures.get(ip, []) if now - t < 300]
-    _failures[ip] = recent
-    if len(recent) >= 5:
-        return int(300 - (now - recent[0])) + 1
-    return 0
+    wait = 0
+    for key, limit in ((f"ip:{ip}", LIMITS["ip"]), (f"user:{username.strip().lower()}", LIMITS["user"])):
+        recent = [t for t in _failures.get(key, []) if now - t < 300]
+        _failures[key] = recent
+        if len(recent) >= limit:
+            wait = max(wait, int(300 - (now - recent[0])) + 1)
+    return wait
 
 
-def record_failure(ip: str) -> None:
-    _failures.setdefault(ip, []).append(time.time())
+def record_failure(ip: str, username: str = "") -> None:
+    _failures.setdefault(f"ip:{ip}", []).append(time.time())
+    _failures.setdefault(f"user:{username.strip().lower()}", []).append(time.time())
 
 
-def clear_failures(ip: str) -> None:
-    _failures.pop(ip, None)
+def clear_failures(ip: str, username: str = "") -> None:
+    _failures.pop(f"ip:{ip}", None)
+    _failures.pop(f"user:{username.strip().lower()}", None)

@@ -46,7 +46,7 @@ async def _load() -> tuple[list[dict], list[str]]:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         for name, res in zip(tasks, results):
             if isinstance(res, Exception):
-                log.exception("Échec %s", name, exc_info=res)
+                log.warning("%s injoignable : %s", name.capitalize(), clients._explain(res))
                 warnings.append(f"{name.capitalize()} : {clients._explain(res)}")
             elif name == "jellyfin":
                 history = res

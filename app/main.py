@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import secrets
 from datetime import date, timedelta
 from pathlib import Path
@@ -18,6 +19,21 @@ from . import auth, ics, library, planner, settings
 from .clients import Config, collection_name, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+
+class _RedactTokens(logging.Filter):
+    """Masque ?token=… (calendrier, écran de cuisine) dans les journaux."""
+    PATTERN = re.compile(r"(token=)[^&\s\"']+")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.args:
+            record.args = tuple(self.PATTERN.sub(r"\1***", a) if isinstance(a, str) else a for a in record.args)
+        record.msg = self.PATTERN.sub(r"\1***", str(record.msg))
+        return True
+
+
+for _name in ("uvicorn.access", "uvicorn.error", "httpx"):
+    logging.getLogger(_name).addFilter(_RedactTokens())
 
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Calendarr", docs_url=None, redoc_url=None)
@@ -51,6 +67,18 @@ async def require_login(request: Request, call_next):
         return JSONResponse({"detail": "Réservé aux administrateurs"}, status_code=403)
     request.state.user = user
     return await call_next(request)
+
+
+# ajouté après require_login : il l'englobe, donc s'applique aussi aux refus (401, 403)
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    # L'écran de cuisine peut être affiché dans un tableau de bord (Home Assistant…), pas le reste
+    if request.url.path != "/mur":
+        response.headers.setdefault("X-Frame-Options", "DENY")
+    return response
 
 
 def _set_cookie(request: Request, response: Response, user: dict) -> None:
@@ -97,14 +125,15 @@ async def auth_login(request: Request, data: dict = Body(...)):
     if request.headers.get("x-calendarr") != "1":
         _fail("Requête refusée", 403)
     ip = _client_ip(request)
-    wait = auth.too_many_attempts(ip)
+    name = str(data.get("username", ""))
+    wait = auth.too_many_attempts(ip, name)
     if wait:
         _fail(f"Trop d'essais. Réessayez dans {wait} secondes.", 429)
-    user = auth.verify(data.get("username", ""), data.get("password", ""))
+    user = auth.verify(name, data.get("password", ""))
     if not user:
-        auth.record_failure(ip)
+        auth.record_failure(ip, name)
         _fail("Nom d'utilisateur ou mot de passe incorrect.", 401)
-    auth.clear_failures(ip)
+    auth.clear_failures(ip, name)
     response = JSONResponse({"user": auth.public(user)})
     _set_cookie(request, response, user)
     return response
@@ -182,6 +211,7 @@ def _calendar_token() -> str:
     token = secrets.token_urlsafe(16)
     settings.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(token)
+    os.chmod(path, 0o600)
     return token
 
 
@@ -206,6 +236,7 @@ async def status(request: Request):
     ics_url = f"{base}/calendar.ics?token={token}"
     return {
         "demo": Config.demo(),
+        "version": os.environ.get("APP_VERSION", "dev"),
         "services": await check_connections(),
         "calendar_url": ics_url,
         "webcal_url": ics_url.replace("https://", "webcal://").replace("http://", "webcal://"),
@@ -510,4 +541,4 @@ async def service_worker():
 
 @app.get("/health")
 async def health():
-    return {"ok": True}
+    return {"ok": True, "version": os.environ.get("APP_VERSION", "dev")}

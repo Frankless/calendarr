@@ -24,6 +24,10 @@ Décisions prises (2026-11-21) :
 - [x] **Collection Jellyfin par semaine** (« Calendarr · Semaine du 23 novembre ») : seulement ce qui
   reste à voir cette semaine, les jours passés en sortent, l'ancienne semaine est supprimée le lundi.
 - [x] Comptes et rôles (administrateur, famille), connexions saisies dans l'app.
+- [x] Relecture de sécurité (v0.1.0) : conteneur sans root, clé redemandée si l'adresse d'un service
+  change, limite d'essais par appareil et par compte, jetons masqués dans les journaux, en-têtes de
+  sécurité, dépendances à jour.
+- [x] Versions publiées (releases GitHub) : `latest` = dernière version stable, `edge` = branche main.
 
 ## P1 : surprise et retour d'information
 
@@ -48,6 +52,12 @@ Décisions prises (2026-11-21) :
 - [ ] À vérifier sur l'Apple TV : la collection de la semaine apparaît-elle bien dans Infuse ?
 - [ ] Tester les liens `infuse://` (films, séries, épisodes) sur iPhone et iPad.
 - [ ] Jaquettes servies depuis le NAS (Jellyfin) avec un cache, au lieu d'Internet (TMDB).
+
+## Sécurité : à faire plus tard
+
+- [ ] Protéger la création du premier compte (par exemple un code affiché dans les journaux du conteneur).
+- [ ] Épingler les actions GitHub par empreinte (SHA) plutôt que par numéro de version.
+- [ ] Politique de sécurité du contenu (CSP) stricte, qui demande de sortir le JavaScript des attributs HTML.
 
 ## P3 : plus tard
 
