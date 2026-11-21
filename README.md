@@ -36,6 +36,14 @@ Nothing is scheduled until the family chooses it. What Calendarr proposes is an 
 quiet card; "On le garde" (Keep it) or "On regarde ça" (Let's watch this) confirms it. Only confirmed
 programs go to the iCloud calendar and the Jellyfin collection.
 
+"Composer la semaine" (Compose the week), in the Semaine page, lays the week's slots out as empty cases,
+with a hand of five cards below: the next episode of the series you're watching, titles you liked in
+"Surprends-moi" and suggested movies (age, length, tastes, not seen yet). Drag a card onto a case, or tap
+the card and then the case; cases that don't suit the card (audience, length) are dimmed. A case can stay
+empty. "Autre main" (Another hand) deals new cards, the × on a card ("Pas cette semaine", Not this week)
+sets it aside for the week, and "C'est bon pour la semaine" (Good for this week) confirms what was placed.
+Until then, everything stays an idea.
+
 Series have three states, set in the "Séries" page: "On la regarde" (watching: its next episodes can be
 scheduled), "Plus tard" (later: never scheduled, with an optional reminder in 1, 3 or 6 months or on a
 date) and "Pas pour nous" (not for us: hidden everywhere). Each series also has an audience (parents,

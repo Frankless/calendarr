@@ -850,3 +850,101 @@ a.mini { text-decoration: none; }
   .bottom-nav button { font-size: 10px; }
   .serie-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Composer la semaine ---------- */
+.seg { display: inline-flex; padding: 4px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.seg button { border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.seg button.active { background: var(--raised); color: var(--text); }
+.board { display: flex; flex-direction: column; gap: 18px; padding-bottom: 260px; }
+.board-cases { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.case {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px; min-height: 108px; border-radius: var(--r-panel);
+  border: 1px dashed var(--line); background: transparent; cursor: pointer; transition: opacity .15s, border-color .15s, background .15s;
+}
+.case.filled { border-style: solid; background: var(--surface); }
+.case.confirmed { border-color: var(--accent-soft); }
+.case-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.case-empty { flex: 1; display: grid; place-items: center; color: var(--text-2); font-size: 14px; border-radius: 8px; }
+.case-card { display: grid; grid-template-columns: 44px 1fr 32px; gap: 10px; align-items: center; }
+.case-card .cover { width: 44px; }
+.case-card .cover.fake b { font-size: 7px; }
+.case-card .cover.fake small, .case-card .cover .type { display: none; }
+.case-card b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.case-card small { color: var(--text-2); font-size: 12px; }
+.case-x { width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: var(--text-2); cursor: pointer; display: grid; place-items: center; }
+.case-x:hover { background: var(--raised); color: var(--danger); }
+.case-x svg { width: 16px; height: 16px; }
+.case.can { border-color: var(--accent); border-style: solid; background: var(--accent-soft); }
+.case.can .case-empty { color: var(--accent-text); }
+.case.off { opacity: .35; }
+.case.hover { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hand-bar {
+  position: sticky; bottom: 0; z-index: 10; margin: 0 -32px; padding: 12px 32px 16px;
+  background: var(--bg); border-top: 1px solid var(--line);
+}
+.hand-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.hand-head .muted { flex: 1; }
+.hand { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; max-width: 760px; }
+.hcard {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: var(--r-ctl);
+  border: 1px solid var(--line); background: var(--surface); cursor: grab; touch-action: none; user-select: none;
+  transition: transform .15s, border-color .15s;
+}
+.hcard .cover { width: 100%; }
+.hcard b { font-size: 13px; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hcard small { font-size: 12px; color: var(--text-2); }
+.hcard.selected { border-color: var(--accent); transform: translateY(-6px); box-shadow: 0 10px 24px rgba(0,0,0,.2); }
+.hcard-x {
+  position: absolute; top: 4px; right: 4px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; border: 0;
+  background: rgba(21,18,15,.7); color: #f6f1ea; display: grid; place-items: center; cursor: pointer;
+}
+.hcard-x svg { width: 14px; height: 14px; }
+.hcard.ghost { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; opacity: .92; transform-origin: top left; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+.compose-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .case, .hcard, .swipe-card { transition: none !important; }
+  .hcard.selected { transform: none; }
+}
+
+@media (max-width: 768px) {
+  #view-compose .page-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .board { padding-bottom: 300px; }
+  .board-cases { grid-template-columns: 1fr; }
+  .hand-bar { position: fixed; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom)); margin: 0; padding: 10px 12px 12px; }
+  .hand { gap: 6px; }
+  .hcard { padding: 5px; }
+  .hcard b { font-size: 11px; }
+  .hcard small { font-size: 10px; }
+  .hand-head .muted { display: none; }
+  .compose-actions .btn { width: 100%; justify-content: center; }
+}
+
+/* grand écran : la semaine d'un coup d'œil, une colonne par jour */
+@media (min-width: 1100px) {
+  #view-compose .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: start; padding-bottom: 24px; }
+  #view-compose .board-day .day-head { margin-bottom: 8px; }
+  #view-compose .board-cases { grid-template-columns: 1fr; }
+  #view-compose .case { min-height: 150px; }
+  #view-compose .case-top .muted { flex-basis: 100%; }
+  #view-compose .case-card { grid-template-columns: 1fr 28px; }
+  #view-compose .case-card .cover { grid-column: 1 / -1; width: 64px; }
+  .hand { grid-template-columns: repeat(5, 132px); max-width: none; }
+}
+
+/* les colonnes ne débordent pas sur la voisine */
+#view-compose .board-day, #view-compose .case, .case-card > div { min-width: 0; }
+
+@media (max-width: 768px) {
+  /* téléphone : une rangée de petites cartes qui défile, la semaine reste visible */
+  .hand { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 8px 2px 4px; margin: -8px -2px 0; }
+  .hcard { flex: 0 0 76px; width: 76px; min-width: 0; scroll-snap-align: start; }
+  .hcard .cover { aspect-ratio: 1; }
+  .hcard .cover .type, .hcard .cover.fake small { display: none; }
+  .hcard .cover.fake { padding: 6px; }
+  .hcard .cover.fake b { font-size: 10px; }
+  .hcard-x { width: 24px; height: 24px; top: 2px; right: 2px; }
+  .hcard.selected { transform: translateY(-4px); }
+  .compose-actions { margin-top: 8px; }
+}

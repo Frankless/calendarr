@@ -34,6 +34,14 @@ Rien n'est programmé tant que la famille ne l'a pas choisi. Ce que Calendarr pr
 affichée en carte discrète ; « On le garde » ou « On regarde ça » la confirme. Seuls les programmes
 confirmés vont dans le calendrier iCloud et dans la collection Jellyfin.
 
+« Composer la semaine », dans la page Semaine, montre les créneaux de la semaine comme des cases vides,
+avec en dessous une main de cinq cartes : le prochain épisode des séries que vous regardez, les titres
+aimés dans « Surprends-moi » et des films suggérés (âge, durée, goûts, pas encore vus). On glisse une
+carte sur une case, ou on touche la carte puis la case ; les cases qui ne lui conviennent pas (public,
+durée) s'estompent. Une case peut rester vide. « Autre main » redistribue, le × d'une carte (« Pas cette
+semaine ») l'écarte pour la semaine, et « C'est bon pour la semaine » confirme ce qui a été posé.
+Jusque-là, tout reste une idée.
+
 Les séries ont trois états, réglés dans la page « Séries » : « On la regarde » (ses prochains épisodes
 peuvent être programmés), « Plus tard » (jamais programmée, avec un rappel facultatif dans 1, 3 ou 6 mois
 ou à une date) et « Pas pour nous » (cachée partout). Chaque série a aussi son public (parents, enfants,

@@ -56,7 +56,10 @@ ans", i.e. "All ages", "12 and up").
   Prefilled from Jellyfin on first launch. Stored in `/config/watchstate.json`. The planner only
   schedules "On la regarde" series for their audience; proposals are "ideas" until confirmed; the iCal
   feed and the Jellyfin collection only contain confirmed programs.
-- [ ] Step 3: compose the week (deck building).
+- [x] Step 3: compose the week (deck building). Week slots are empty cases, with a hand of five cards
+  (next episodes of watched series, titles liked in "Surprends-moi", suggested movies). Drag or tap to
+  place, incompatible cases dimmed, "Autre main", "Pas cette semaine", "C'est bon pour la semaine". On
+  large screens the week is shown in columns, on phones the hand scrolls sideways.
 - [ ] Step 4: first-run walkthrough.
 - [ ] Step 5: the Sunday card.
 

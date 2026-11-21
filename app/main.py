@@ -15,7 +15,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, feedback, ics, library, planner, settings, watchstate
+from . import auth, compose, feedback, ics, library, planner, settings, watchstate
 from .clients import Config, collection_name, jellyfin_set_episodes_played, jellyfin_set_played, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -631,6 +631,53 @@ async def series_update(uid: str, request: Request, data: dict = Body(...)):
         if planner.load_plan(start) and not any(e.get("confirmed") for e in planner.load_plan(start)["entries"]):
             await planner.regenerate(start, settings.load())
     return {"uid": uid, "state": rec["state"], "audience": rec["audience"], "remind": rec.get("remind")}
+
+
+# --------------------------------------------------------------------------- #
+# Composer la semaine (deck)
+# --------------------------------------------------------------------------- #
+
+def _uids(value: str | None) -> set[str]:
+    return {u for u in (value or "").split(",") if u}
+
+
+@app.get("/api/compose")
+async def compose_state(week: str | None = None, exclude: str = ""):
+    return await compose.state(_week(week), settings.load(), _uids(exclude))
+
+
+@app.get("/api/compose/hand")
+async def compose_hand(week: str, exclude: str = "", n: int = compose.HAND_SIZE):
+    plan = await planner.get_plan(_week(week), settings.load())
+    return {"hand": await compose.hand(plan, settings.load(), _uids(exclude), size=max(1, min(n, 8)))}
+
+
+@app.post("/api/compose/place")
+async def compose_place(data: dict = Body(...)):
+    try:
+        plan = await compose.place(_week(str(data.get("week", ""))), str(data.get("entry", "")), str(data.get("uid", "")), settings.load())
+    except ValueError as exc:
+        _fail(str(exc))
+    return {"board": compose.board(plan)}
+
+
+@app.post("/api/compose/clear")
+async def compose_clear(data: dict = Body(...)):
+    plan = await compose.clear(_week(str(data.get("week", ""))), str(data.get("entry", "")), settings.load())
+    return {"board": compose.board(plan)}
+
+
+@app.post("/api/compose/skip")
+async def compose_skip(data: dict = Body(...)):
+    await compose.skip(_week(str(data.get("week", ""))), str(data.get("uid", "")), settings.load())
+    return {"ok": True}
+
+
+@app.post("/api/compose/validate")
+async def compose_validate(data: dict = Body(...)):
+    plan = await compose.validate(_week(str(data.get("week", ""))), settings.load())
+    n = sum(1 for e in plan["entries"] if e.get("confirmed") and e.get("item") and e["date"] >= ics.today_local().isoformat())
+    return {"board": compose.board(plan), "confirmed": n, "validated_at": plan["validated_at"]}
 
 
 @app.post("/api/plan/swap")

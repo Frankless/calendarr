@@ -95,8 +95,9 @@
             </div>
             <button class="icon-btn more-btn" id="more-btn" aria-label="Plus d'actions"><svg><use href="#i-more"/></svg></button>
             <div class="actions" id="week-actions">
+              <button class="btn" id="open-compose" data-goto="compose"><svg><use href="#i-surprise"/></svg>Composer la semaine</button>
               <button class="btn secondary" id="regen"><svg><use href="#i-swap"/></svg>Nouveau programme</button>
-              <button class="btn" id="open-cal"><svg><use href="#i-cal"/></svg>Ajouter au calendrier</button>
+              <button class="btn secondary" id="open-cal"><svg><use href="#i-cal"/></svg>Ajouter au calendrier</button>
             </div>
           </div>
           <div id="week" class="week"></div>
@@ -128,6 +129,32 @@
           </div>
           <div id="matches"></div>
           <div class="match-pop" id="match-pop" hidden><div><span>♥</span><h2>C'est un match !</h2><p id="match-text"></p></div></div>
+        </section>
+
+        <!-- COMPOSER LA SEMAINE -->
+        <section id="view-compose" class="view" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Composer la semaine</h1>
+              <p id="compose-sub">Glissez une carte sur un créneau, ou touchez la carte puis le créneau. Une case peut rester vide.</p>
+            </div>
+            <div class="seg" role="tablist" aria-label="Quelle semaine">
+              <button data-cweek="0">Cette semaine</button>
+              <button data-cweek="7">Semaine prochaine</button>
+            </div>
+          </div>
+          <div id="board" class="board"><div class="loading">Un instant…</div></div>
+          <div class="hand-bar">
+            <div class="hand-head">
+              <b>Votre main</b>
+              <span class="muted small" id="hand-hint">Touchez une carte pour voir où elle va.</span>
+              <button type="button" class="mini" id="new-hand"><svg><use href="#i-swap"/></svg>Autre main</button>
+            </div>
+            <div id="hand" class="hand" aria-label="Cartes à poser"></div>
+            <div class="compose-actions">
+              <button type="button" class="btn" id="compose-ok">C'est bon pour la semaine</button>
+            </div>
+          </div>
         </section>
 
         <!-- SÉRIES -->

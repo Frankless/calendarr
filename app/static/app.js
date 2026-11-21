@@ -114,7 +114,7 @@ const neverSeen = (reason) => (reason || "").startsWith("Jamais vu");
 
 /* ---------- navigation ---------- */
 function show(view) {
-  $$("[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  $$("[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === (view === "compose" ? "week" : view)));
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${view}`));
   if (view === "tonight") loadTonight();
   if (view === "week" && state.plan) renderWeek();
@@ -122,6 +122,7 @@ function show(view) {
   if (view !== "tonight") releaseWakeLock();
   if (view === "surprise") loadDeck();
   if (view === "upcoming") loadUpcoming();
+  if (view === "compose") loadCompose(state.week && state.week >= composeWeekStart(0) ? state.week : composeWeekStart(0));
   if (view === "series") { if (state.series) renderSeries(); loadSeries(); }
   if (view === "settings") loadSettings();
   history.replaceState(null, "", `#${view}`);
@@ -802,6 +803,236 @@ $("#pick-dialog").addEventListener("close", async () => {
   }
 });
 
+/* ---------- Composer la semaine (deck) ---------- */
+state.compose = { week: null, board: [], hand: [], selected: null };
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function composeWeekStart(offset = 0) {
+  const today = state.status?.today || iso(new Date());
+  return addDays(weekOf(today), offset);
+}
+
+async function loadCompose(week) {
+  const c = state.compose;
+  c.week = week || c.week || composeWeekStart(0);
+  c.selected = null;
+  $$("[data-cweek]").forEach((b) => b.classList.toggle("active", addDays(composeWeekStart(0), +b.dataset.cweek) === c.week));
+  $("#board").innerHTML = `<div class="loading">On prépare la main…</div>`;
+  $("#hand").innerHTML = "";
+  try {
+    const res = await api(`/api/compose?week=${c.week}`);
+    c.board = res.board;
+    c.hand = res.hand;
+    c.validated = res.validated_at;
+    renderBoard();
+    renderHand();
+  } catch (err) {
+    $("#board").innerHTML = `<div class="loading">${esc(err.message)}</div>`;
+  }
+}
+
+function caseHTML(b) {
+  const it = b.item;
+  const body = it
+    ? `<div class="case-card">${cover(it)}<div><b>${esc(it.title)}</b><small>${b.episodes?.length ? b.episodes.map((e) => e.code).join(" · ") : it.kind === "film" ? dur(it.runtime || 0) : ""}</small></div>
+         <button type="button" class="case-x" data-clear="${b.id}" aria-label="Retirer ${esc(it.title)}">${icon("x")}</button></div>`
+    : `<div class="case-empty">Poser une carte</div>`;
+  return `<div class="case ${b.audience}${it ? " filled" : ""}${b.confirmed ? " confirmed" : ""}" data-entry="${b.id}" role="button" tabindex="0"
+      aria-label="${esc(b.weekday)} ${b.start}, ${esc(AUDIENCE[b.audience])}${it ? ", " + esc(it.title) : ", vide"}">
+    <div class="case-top"><span class="time">${b.start}</span><span class="badge ${b.audience}">${esc(AUDIENCE[b.audience])}</span><span class="muted small">${esc(b.label || "")} · ${b.max_minutes} min max</span></div>
+    ${body}
+  </div>`;
+}
+
+function renderBoard() {
+  const c = state.compose;
+  if (!c.board.length) {
+    $("#board").innerHTML = `<p class="muted">Pas de créneau cette semaine. Ajoutez-en dans Réglages → La semaine type.</p>`;
+    return;
+  }
+  const days = {};
+  c.board.forEach((b) => (days[b.date] ||= []).push(b));
+  $("#board").innerHTML = Object.entries(days).map(([d, list]) => {
+    const dd = parse(d);
+    return `<div class="board-day"><div class="day-head"><span>${dayName(d)} ${dd.getDate()} ${MONTHS_SHORT[dd.getMonth()]}</span></div>
+      <div class="board-cases">${list.map(caseHTML).join("")}</div></div>`;
+  }).join("");
+  const placed = c.board.filter((b) => b.item).length;
+  $("#compose-ok").textContent = placed ? `C'est bon pour la semaine (${placed})` : "C'est bon pour la semaine";
+  $("#compose-sub").textContent = c.validated
+    ? "Semaine validée. Vous pouvez encore changer une case, puis valider à nouveau."
+    : "Glissez une carte sur un créneau, ou touchez la carte puis le créneau. Une case peut rester vide.";
+  highlight();
+}
+
+function renderHand() {
+  const c = state.compose;
+  $("#hand").innerHTML = c.hand.length ? c.hand.map((h) => `
+    <div class="hcard${c.selected === h.uid ? " selected" : ""}" data-uid="${esc(h.uid)}" role="button" tabindex="0" aria-pressed="${c.selected === h.uid}">
+      ${cover(h, { type: true })}
+      <b>${esc(h.title)}</b>
+      <small>${h.kind === "serie" ? `${h.next} · ${h.runtime || "?"} min` : dur(h.runtime || 0)}</small>
+      <button type="button" class="hcard-x" data-skip="${esc(h.uid)}" title="Pas cette semaine" aria-label="Pas cette semaine : ${esc(h.title)}">${icon("x")}</button>
+    </div>`).join("") : `<p class="muted">Plus de carte compatible avec les cases libres. Essayez « Autre main ».</p>`;
+}
+
+function highlight() {
+  const c = state.compose;
+  const card = c.hand.find((h) => h.uid === c.selected);
+  $$("#board .case").forEach((el) => {
+    const ok = card ? card.fits.includes(el.dataset.entry) : false;
+    el.classList.toggle("can", !!card && ok);
+    el.classList.toggle("off", !!card && !ok);
+  });
+  $("#hand-hint").textContent = card ? `Où mettre « ${card.title} » ? Touchez une case allumée.` : "Touchez une carte pour voir où elle va.";
+  // la case allumée ne doit pas rester cachée sous la main (téléphone)
+  const first = card && $("#board .case.can");
+  if (first) {
+    const r = first.getBoundingClientRect(), bar = $(".hand-bar").getBoundingClientRect();
+    if (r.top < 70 || r.bottom > bar.top) window.scrollBy({ top: r.top - 90, behavior: reduceMotion ? "auto" : "smooth" });
+  }
+}
+
+function selectCard(uid) {
+  const c = state.compose;
+  c.selected = c.selected === uid ? null : uid;
+  $$("#hand .hcard").forEach((el) => { el.classList.toggle("selected", el.dataset.uid === c.selected); el.setAttribute("aria-pressed", el.dataset.uid === c.selected); });
+  highlight();
+}
+
+async function placeCard(uid, entryId) {
+  const c = state.compose;
+  const card = c.hand.find((h) => h.uid === uid);
+  if (!card) return;
+  if (!card.fits.includes(entryId)) { toast("Cette carte ne convient pas à ce créneau (public ou durée)."); return; }
+  try {
+    const res = await api("/api/compose/place", { method: "POST", body: JSON.stringify({ week: c.week, entry: entryId, uid }) });
+    c.board = res.board;
+    c.hand = c.hand.filter((h) => h.uid !== uid);
+    c.selected = null;
+    renderBoard();
+    renderHand();
+    refill(1);
+  } catch (err) { toast(err.message); }
+}
+
+async function refill(n) {
+  const c = state.compose;
+  const exclude = [...c.hand.map((h) => h.uid), ...c.board.filter((b) => b.item).map((b) => b.item.uid)].join(",");
+  try {
+    const res = await api(`/api/compose/hand?week=${c.week}&exclude=${encodeURIComponent(exclude)}&n=${n}`);
+    c.hand = [...c.hand, ...res.hand].slice(0, 5);
+    // les cases déjà remplies ne comptent plus pour l'allumage
+    renderHand();
+  } catch { /* la main reste telle quelle */ }
+}
+
+$("#hand").addEventListener("click", async (ev) => {
+  const skip = ev.target.closest("[data-skip]");
+  const c = state.compose;
+  if (skip) {
+    ev.stopPropagation();
+    const uid = skip.dataset.skip;
+    await api("/api/compose/skip", { method: "POST", body: JSON.stringify({ week: c.week, uid }) }).catch(() => {});
+    c.hand = c.hand.filter((h) => h.uid !== uid);
+    if (c.selected === uid) c.selected = null;
+    renderHand(); highlight();
+    toast("Pas cette semaine : la carte est écartée.");
+    refill(1);
+    return;
+  }
+  const card = ev.target.closest(".hcard");
+  if (card && !state.dragged) selectCard(card.dataset.uid);
+});
+$("#hand").addEventListener("keydown", (ev) => {
+  const card = ev.target.closest(".hcard");
+  if (card && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); selectCard(card.dataset.uid); }
+});
+
+$("#board").addEventListener("click", async (ev) => {
+  const c = state.compose;
+  const clr = ev.target.closest("[data-clear]");
+  if (clr) {
+    ev.stopPropagation();
+    const res = await api("/api/compose/clear", { method: "POST", body: JSON.stringify({ week: c.week, entry: clr.dataset.clear }) });
+    c.board = res.board;
+    renderBoard();
+    return;
+  }
+  const cs = ev.target.closest(".case");
+  if (!cs) return;
+  if (c.selected) placeCard(c.selected, cs.dataset.entry);
+  else toast("Choisissez d'abord une carte dans votre main.");
+});
+$("#board").addEventListener("keydown", (ev) => {
+  const cs = ev.target.closest(".case");
+  if (cs && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); cs.click(); }
+});
+
+/* Glisser une carte sur une case (souris ou doigt) */
+(function enableDrag() {
+  let start = null, ghost = null;
+  $("#hand").addEventListener("pointerdown", (ev) => {
+    const card = ev.target.closest(".hcard");
+    if (!card || ev.target.closest("[data-skip]")) return;
+    start = { x: ev.clientX, y: ev.clientY, card, id: ev.pointerId };
+    state.dragged = false;
+  });
+  window.addEventListener("pointermove", (ev) => {
+    if (!start || ev.pointerId !== start.id) return;
+    const dx = ev.clientX - start.x, dy = ev.clientY - start.y;
+    if (!ghost && Math.hypot(dx, dy) > 10) {
+      state.dragged = true;
+      if (state.compose.selected !== start.card.dataset.uid) selectCard(start.card.dataset.uid);
+      ghost = start.card.cloneNode(true);
+      ghost.classList.add("ghost");
+      const r = start.card.getBoundingClientRect();
+      ghost.style.width = r.width + "px";
+      document.body.appendChild(ghost);
+    }
+    if (ghost) {
+      ev.preventDefault();
+      ghost.style.transform = `translate(${ev.clientX - 30}px, ${ev.clientY - 40}px)`;
+      $$("#board .case.hover").forEach((x) => x.classList.remove("hover"));
+      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".case");
+      if (over) over.classList.add("hover");
+    }
+  }, { passive: false });
+  window.addEventListener("pointerup", (ev) => {
+    if (!start) return;
+    const card = start.card;
+    start = null;
+    if (!ghost) return;
+    ghost.remove(); ghost = null;
+    $$("#board .case.hover").forEach((x) => x.classList.remove("hover"));
+    const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".case");
+    if (over) placeCard(card.dataset.uid, over.dataset.entry);
+    setTimeout(() => (state.dragged = false), 0);
+  });
+})();
+
+$("#new-hand").onclick = async () => {
+  const c = state.compose;
+  const exclude = [...c.hand.map((h) => h.uid), ...c.board.filter((b) => b.item).map((b) => b.item.uid)].join(",");
+  try {
+    const res = await api(`/api/compose/hand?week=${c.week}&exclude=${encodeURIComponent(exclude)}&n=5`);
+    if (!res.hand.length) { toast("Pas d'autre carte pour l'instant : on remélange."); return loadCompose(c.week); }
+    c.hand = res.hand; c.selected = null;
+    renderHand(); highlight();
+  } catch (err) { toast(err.message); }
+};
+$$("[data-cweek]").forEach((b) => (b.onclick = () => loadCompose(composeWeekStart(+b.dataset.cweek))));
+$("#compose-ok").onclick = async () => {
+  const c = state.compose;
+  try {
+    const res = await api("/api/compose/validate", { method: "POST", body: JSON.stringify({ week: c.week }) });
+    toast(res.confirmed ? `C'est noté : ${res.confirmed} programme${res.confirmed > 1 ? "s" : ""} pour la semaine (et dans le calendrier).` : "Semaine validée, sans programme : soirées libres !");
+    state.plan = null;
+    show("week");
+    await loadWeek(c.week);
+  } catch (err) { toast(err.message); }
+};
+
 /* ---------- Séries ---------- */
 const SERIES_STATES = { watching: "On la regarde", later: "Plus tard", never: "Pas pour nous", inbox: "À classer" };
 state.series = null;
@@ -1350,7 +1581,7 @@ async function startApp() {
     state.status = null;
   }
   const view = location.hash.slice(1);
-  show(["week", "surprise", "series", "upcoming", "settings"].includes(view) ? view : "tonight");
+  show(["week", "compose", "surprise", "series", "upcoming", "settings"].includes(view) ? view : "tonight");
   if (view === "week") await loadWeek();
   else loadWeek();
 }
