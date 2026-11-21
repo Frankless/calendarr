@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, ics, library, planner, settings
-from .clients import COLLECTION_NAME, Config, check_connections, jellyfin_sync_collection, jellyfin_users
+from .clients import Config, collection_name, check_connections, jellyfin_sync_collection, jellyfin_users
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -260,7 +260,7 @@ async def get_settings():
         "audiences": settings.AUDIENCES,
         "kinds": settings.KINDS,
         "players": settings.PLAYERS,
-        "collection_name": COLLECTION_NAME,
+        "collection_name": collection_name(planner.week_start(ics.today_local())),
         "genres": genres,
     }
 
@@ -306,7 +306,8 @@ def _watch(full: dict, e: dict, jf_id: str | None, player: str) -> dict:
     """Comment lancer ce programme, selon la façon dont la famille regarde."""
     if player == "appletv":
         ep = e["episodes"][0]["code"] if e.get("episodes") else ""
-        where = f"Infuse → collection « {COLLECTION_NAME} »" if settings.load().get("sync_collection") else "Infuse → Films" if full["kind"] == "film" else "Infuse → Séries"
+        coll = collection_name(planner.week_start(date.fromisoformat(e["date"])))
+        where = f"Infuse → collection « {coll} »" if settings.load().get("sync_collection") else "Infuse → Films" if full["kind"] == "film" else "Infuse → Séries"
         return {"appletv": {"where": where, "title": full["title"], "episode": ep}}
     if player == "infuse":
         tmdb = full.get("tmdb")
@@ -329,35 +330,34 @@ def _watch(full: dict, e: dict, jf_id: str | None, player: str) -> dict:
 _sync_state = {"last": None, "task": None, "message": ""}
 
 
-async def _next_days_jf_ids() -> list[str]:
-    """Identifiants Jellyfin des titres prévus aujourd'hui et les 6 jours suivants."""
+async def _week_remaining() -> tuple[str, list[str]]:
+    """Nom de la collection de la semaine et identifiants Jellyfin de ce qui
+    reste à voir (d'aujourd'hui à dimanche ; les jours passés en sortent)."""
     cfg = settings.load()
     today = ics.today_local()
     start = planner.week_start(today)
-    entries = []
-    for offset in (0, 7):
-        entries += (await planner.get_plan(start + timedelta(days=offset), cfg))["entries"]
+    entries = (await planner.get_plan(start, cfg))["entries"]
     items, _ = await library.get()
     by_uid = {it["uid"]: it for it in items}
-    first, last = today.isoformat(), (today + timedelta(days=6)).isoformat()
+    first, last = today.isoformat(), (start + timedelta(days=6)).isoformat()
     ids = []
     for e in sorted(entries, key=lambda x: (x["date"], x["start"])):
         if e.get("item") and first <= e["date"] <= last:
             full = by_uid.get(e["item"]["uid"])
             if full and full.get("jf_id"):
                 ids.append(full["jf_id"])
-    return ids
+    return collection_name(start), ids
 
 
 def _schedule_sync() -> None:
     """Met la collection à jour en arrière-plan, seulement si la liste a changé."""
     async def run():
         try:
-            ids = await _next_days_jf_ids()
-            if ids == _sync_state["last"]:
+            name, ids = await _week_remaining()
+            if (name, ids) == _sync_state["last"]:
                 return
-            _sync_state["message"] = await jellyfin_sync_collection(ids)
-            _sync_state["last"] = ids
+            _sync_state["message"] = await jellyfin_sync_collection(name, ids)
+            _sync_state["last"] = (name, ids)
             logging.info("Collection Jellyfin : %s", _sync_state["message"])
         except Exception as exc:  # noqa: BLE001
             _sync_state["message"] = f"échec : {exc}"
@@ -371,12 +371,12 @@ def _schedule_sync() -> None:
 
 @app.post("/api/collection/sync")
 async def collection_sync():
-    ids = await _next_days_jf_ids()
+    name, ids = await _week_remaining()
     try:
-        message = await jellyfin_sync_collection(ids)
+        message = await jellyfin_sync_collection(name, ids)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"Jellyfin a refusé : {exc}") from exc
-    _sync_state["last"] = ids
+    _sync_state["last"] = (name, ids)
     return {"message": message}
 
 

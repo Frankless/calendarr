@@ -136,8 +136,10 @@ Dans **Réglages → Regarder**, choisissez comment la famille regarde :
 | Infuse sur le téléphone ou l'iPad | **▶ Regarder** ouvre Infuse sur l'appareil, au bon film ou au bon épisode (à tester avec votre version d'Infuse). |
 | Infuse sur l'Apple TV | Une page web ne peut pas lancer un film sur l'Apple TV : le bouton devient **Sur l'Apple TV** et rappelle où trouver le titre dans Infuse, avec l'épisode à lancer. |
 
-Cochez **Tenir à jour une collection « Calendarr · Cette semaine »** : Calendarr rassemble dans Jellyfin
-les titres prévus pour les 7 prochains jours, et la met à jour quand le programme change. Si Infuse est
+Cochez **Tenir à jour une collection de la semaine** : Calendarr crée dans Jellyfin une collection
+« Calendarr · Semaine du 23 novembre » avec ce qui reste à voir cette semaine. Les jours passés en
+sortent, et le lundi une nouvelle collection remplace l'ancienne (seule la collection est supprimée,
+jamais les films). Si Infuse est
 relié à votre Jellyfin, la collection apparaît dans Infuse sur l'Apple TV, avec vos autres collections.
 
 ## Écran de cuisine
@@ -213,6 +215,10 @@ Vos réglages et vos programmes sont gardés dans le dossier `config/`.
 | « Rien ne correspond » sur un créneau | La durée maximum est trop courte, ou l'âge maximum trop bas, ou tout a déjà été vu. Élargissez le créneau dans les Réglages. |
 | Le NAS refuse de télécharger l'image (« unauthorized ») | Sur GitHub, ouvrez le paquet `calendarr` (onglet **Packages** de votre profil) → **Package settings** → **Change visibility** → **Public**. |
 | Voir ce qui se passe | Le journal (« Logs ») du conteneur dans l'interface Docker, ou `docker logs calendarr` |
+
+## Et ensuite ?
+
+Les idées et leur avancement sont dans [docs/backlog.md](docs/backlog.md).
 
 ## Pour les curieux : comment c'est fait
 

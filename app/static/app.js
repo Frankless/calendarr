@@ -534,7 +534,7 @@ async function loadSettings() {
 const PLAYER_HINTS = {
   jellyfin: "▶ Regarder ouvre le titre dans Jellyfin (au bon épisode pour une série en cours).",
   infuse: "▶ Regarder ouvre Infuse sur le téléphone ou l'iPad, au bon film ou au bon épisode. Infuse doit être relié à votre Jellyfin.",
-  appletv: "Une page web ne peut pas lancer un film sur l'Apple TV. Le bouton devient « Sur l'Apple TV » et rappelle où trouver le titre dans Infuse. Activez la collection ci-dessous : tous les titres de la semaine y seront rassemblés.",
+  appletv: "Une page web ne peut pas lancer un film sur l'Apple TV. Le bouton devient « Sur l'Apple TV » et rappelle où trouver le titre dans Infuse. Activez la collection ci-dessous : les titres de la semaine y seront rassemblés.",
 };
 function renderWatching() {
   const s = state.settings;

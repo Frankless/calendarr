@@ -331,31 +331,45 @@ async def jellyfin_users() -> list[str]:
     return [u.get("Name") for u in users if u.get("Name")]
 
 
-COLLECTION_NAME = "Calendarr · Cette semaine"
+COLLECTION_PREFIX = "Calendarr · "
+MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+             "septembre", "octobre", "novembre", "décembre"]
 
 
-async def jellyfin_sync_collection(item_ids: list[str]) -> str:
-    """Crée ou met à jour la collection Jellyfin avec les titres de la semaine.
-    Renvoie un court message (pour les journaux)."""
+def collection_name(week_start: date) -> str:
+    """« Calendarr · Semaine du 23 novembre »"""
+    return f"{COLLECTION_PREFIX}Semaine du {week_start.day} {MONTHS_FR[week_start.month - 1]}"
+
+
+async def jellyfin_sync_collection(name: str, item_ids: list[str]) -> str:
+    """Tient à jour la collection Jellyfin de la semaine et supprime celles des
+    semaines précédentes (seule la collection est supprimée, jamais les films)."""
     if not Config.jellyfin():
         return "Jellyfin non branché"
     wanted = [i for i in dict.fromkeys(item_ids) if i]
+    plural = lambda n: f"{n} titre{'s' if n > 1 else ''}"  # noqa: E731
     async with httpx.AsyncClient() as client:
         uid = await jellyfin_user_id(client)
         found = await _get(
             client, f"{Config.jellyfin_url}/Users/{uid}/Items", headers=_jf_headers(),
             params={"IncludeItemTypes": "BoxSet", "Recursive": "true", "SearchTerm": "Calendarr"},
         )
-        coll = next((c for c in found.get("Items", []) if c.get("Name") == COLLECTION_NAME), None)
+        ours = [c for c in found.get("Items", []) if (c.get("Name") or "").startswith(COLLECTION_PREFIX)]
+        for old in ours:
+            if old.get("Name") != name:
+                r = await client.delete(f"{Config.jellyfin_url}/Items/{old['Id']}", headers=_jf_headers(), timeout=TIMEOUT)
+                if r.status_code >= 400:
+                    log.warning("Ancienne collection « %s » non supprimée (%s)", old.get("Name"), r.status_code)
+        coll = next((c for c in ours if c.get("Name") == name), None)
         if not coll:
             if not wanted:
-                return "rien à ajouter"
+                return "rien à voir pour le reste de la semaine"
             r = await client.post(
                 f"{Config.jellyfin_url}/Collections", headers=_jf_headers(), timeout=TIMEOUT,
-                params={"Name": COLLECTION_NAME, "Ids": ",".join(wanted)},
+                params={"Name": name, "Ids": ",".join(wanted)},
             )
             r.raise_for_status()
-            return f"collection créée ({len(wanted)} titre{'s' if len(wanted) > 1 else ''})"
+            return f"« {name} » créée ({plural(len(wanted))})"
         children = await _get(
             client, f"{Config.jellyfin_url}/Users/{uid}/Items", headers=_jf_headers(),
             params={"ParentId": coll["Id"], "EnableImages": "false"},
@@ -371,7 +385,7 @@ async def jellyfin_sync_collection(item_ids: list[str]) -> str:
             r = await client.delete(f"{Config.jellyfin_url}/Collections/{coll['Id']}/Items",
                                     headers=_jf_headers(), params={"Ids": ",".join(to_remove)}, timeout=TIMEOUT)
             r.raise_for_status()
-        return f"collection à jour ({len(wanted)} titre{'s' if len(wanted) > 1 else ''})"
+        return f"« {name} » à jour ({plural(len(wanted))})"
 
 
 def _parse_dt(value: str | None) -> str | None:
