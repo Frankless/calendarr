@@ -281,3 +281,9 @@ Ideas in progress and to come are in [docs/backlog.md](docs/backlog.md).
 - `app/static/` is the interface: HTML, CSS and JavaScript, no framework, using the system font.
 
 It all runs on Python 3.12 with FastAPI, in a single Docker image.
+
+## About this project
+
+Calendarr is built by a non-developer with the help of an AI (Claude). It runs daily on my own NAS, but it
+has not been audited by a professional. Please read the code before exposing it to the internet, and keep it
+on your home network or behind a VPN.
