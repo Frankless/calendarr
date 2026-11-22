@@ -948,3 +948,5 @@ a.mini { text-decoration: none; }
   .hcard.selected { transform: translateY(-4px); }
   .compose-actions { margin-top: 8px; }
 }
+
+.refresh-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

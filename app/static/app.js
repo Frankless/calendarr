@@ -1216,10 +1216,30 @@ async function loadSettings() {
   $("#s-eps").value = s.series_max_episodes;
   $("#s-rewatch").value = Math.round(s.rewatch_after_days / 365);
   $("#s-reminder").value = s.reminder_minutes;
+  $("#s-refresh").innerHTML = (state.meta.refresh_choices || []).map((m) =>
+    `<option value="${m}"${m === s.refresh_minutes ? " selected" : ""}>${refreshLabel(m)}</option>`).join("");
+  showRefreshAt(state.meta.library_at);
   renderGenres();
   renderWeekEditor();
   renderWatching();
 }
+
+const refreshLabel = (m) => (m < 60 ? `${m} min` : `${m / 60} h`);
+function showRefreshAt(at) {
+  if (!at) { $("#s-refresh-at").textContent = ""; return; }
+  const min = Math.round((Date.now() / 1000 - at) / 60);
+  $("#s-refresh-at").textContent = `Dernière lecture : ${min < 1 ? "à l'instant" : min < 60 ? `il y a ${min} min` : `il y a ${Math.round(min / 60)} h`}`;
+}
+$("#refresh-now").onclick = async () => {
+  const btn = $("#refresh-now");
+  btn.disabled = true;
+  try {
+    const res = await api("/api/library/refresh", { method: "POST" });
+    showRefreshAt(res.library_at);
+    toast(res.warnings?.length ? res.warnings[0] : `Bibliothèque à jour : ${res.items} titres.`);
+  } catch (err) { toast(err.message); }
+  btn.disabled = false;
+};
 
 const PLAYER_HINTS = {
   jellyfin: "▶ Regarder ouvre le titre dans Jellyfin (au bon épisode pour une série en cours).",
@@ -1336,6 +1356,7 @@ $("#save").onclick = async () => {
   s.series_max_episodes = +$("#s-eps").value || 1;
   s.rewatch_after_days = Math.round(+$("#s-rewatch").value * 365);
   s.reminder_minutes = +$("#s-reminder").value;
+  s.refresh_minutes = +$("#s-refresh").value;
   $("#save").disabled = true;
   try {
     const res = await api("/api/settings", { method: "PUT", body: JSON.stringify(s) });

@@ -48,7 +48,7 @@ ADMIN_ROUTES = {
     ("GET", "/api/jellyfin/users"),
     ("GET", "/api/settings"), ("PUT", "/api/settings"),
     ("GET", "/api/wall-link"), ("POST", "/api/wall-link/reset"),
-    ("POST", "/api/collection/sync"),
+    ("POST", "/api/collection/sync"), ("POST", "/api/library/refresh"),
 }
 
 
@@ -308,12 +308,21 @@ async def get_settings():
         "players": settings.PLAYERS,
         "collection_name": collection_name(planner.week_start(ics.today_local())),
         "genres": genres,
+        "refresh_choices": settings.REFRESH_CHOICES,
+        "library_at": library.last_refresh(),
     }
 
 
 @app.put("/api/settings")
 async def put_settings(data: dict = Body(...)):
     return {"settings": settings.save(data)}
+
+
+@app.post("/api/library/refresh")
+async def refresh_library():
+    """« Mettre à jour maintenant » : relit Radarr, Sonarr et Jellyfin tout de suite."""
+    items, warnings = await library.get(force=True)
+    return {"library_at": library.last_refresh(), "items": len(items), "warnings": warnings}
 
 
 @app.get("/api/plan")

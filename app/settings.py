@@ -39,6 +39,8 @@ def _slot(start, minutes, audience, kind, label):
 # Une semaine type pour deux parents et deux enfants de 8 et 4 ans :
 # les soirées des parents commencent après le coucher, le mercredi
 # après-midi est pour les enfants, le vendredi c'est film en famille.
+REFRESH_CHOICES = (10, 30, 60, 180, 360, 720, 1440)
+
 DEFAULT_SETTINGS = {
     "children_ages": [8, 4],
     "max_age_family": 8,
@@ -46,6 +48,8 @@ DEFAULT_SETTINGS = {
     "series_max_episodes": 2,
     "rewatch_after_days": 730,
     "reminder_minutes": 15,
+    # Toutes les combien de minutes Calendarr redemande la bibliothèque à Radarr, Sonarr et Jellyfin
+    "refresh_minutes": 60,
     "liked_genres": [],
     "avoided_genres": ["Horror"],
     # Comment la famille regarde : "jellyfin", "infuse" (sur ce téléphone/iPad) ou "appletv" (Infuse sur l'Apple TV)
@@ -94,6 +98,11 @@ def save(data: dict) -> dict:
     if clean.get("player") not in PLAYERS:
         clean["player"] = "jellyfin"
     clean["sync_collection"] = bool(clean.get("sync_collection"))
+    try:
+        refresh = int(clean.get("refresh_minutes"))
+    except (TypeError, ValueError):
+        refresh = DEFAULT_SETTINGS["refresh_minutes"]
+    clean["refresh_minutes"] = refresh if refresh in REFRESH_CHOICES else DEFAULT_SETTINGS["refresh_minutes"]
     week = []
     for day in clean["week"][:7]:
         slots = []

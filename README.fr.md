@@ -214,6 +214,8 @@ Réglages permet de changer :
 - l'âge des enfants et l'âge conseillé maximum, 8 ans pour les soirées en famille et 6 pour les créneaux
   enfants (à 7, un film « PG » passe, un « PG-13 » non) ;
 - le nombre d'épisodes par soirée, le délai avant de revoir un film, et le rappel ;
+- la fréquence à laquelle Calendarr relit Radarr, Sonarr et Jellyfin (toutes les heures par défaut, de
+  10 minutes à une fois par jour), avec un bouton « Relire maintenant » ;
 - les genres aimés ou à éviter (touchez un genre une fois pour l'aimer, deux fois pour l'éviter) ;
 - la semaine type : pour chaque jour, des créneaux avec une heure, une durée maximum, un public (enfants,
   famille, parents), un type (film, série, documentaire, peu importe) et un nom.

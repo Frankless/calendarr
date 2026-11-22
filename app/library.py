@@ -9,19 +9,30 @@ from datetime import date, timedelta
 
 import httpx
 
-from . import clients, demo, watchstate
+from . import clients, demo, settings, watchstate
 from .clients import Config
 
 log = logging.getLogger("calendarr")
 
-CACHE_SECONDS = 600
+def cache_seconds() -> int:
+    """Durée pendant laquelle la bibliothèque est gardée en mémoire (Réglages → Le rythme)."""
+    try:
+        return int(settings.load().get("refresh_minutes") or 60) * 60
+    except Exception:  # noqa: BLE001 - réglages illisibles : on garde la valeur par défaut
+        return 3600
+
+
+def last_refresh() -> float:
+    return _cache["at"]
+
 _cache: dict = {"at": 0.0, "items": [], "warnings": []}
 _lock = asyncio.Lock()
 
 
 async def get(force: bool = False) -> tuple[list[dict], list[str]]:
     async with _lock:
-        if not force and _cache["items"] and time.time() - _cache["at"] < CACHE_SECONDS:
+        ttl = cache_seconds()
+        if not force and _cache["items"] and time.time() - _cache["at"] < ttl:
             return _cache["items"], _cache["warnings"]
         items, warnings = await _load()
         try:
@@ -107,7 +118,7 @@ def view(item: dict, audience: str) -> dict:
 async def upcoming(start: date, days: int = 14) -> list[dict]:
     key = (start, days)
     hit = _upcoming_cache.get(key)
-    if hit and time.time() - hit[0] < CACHE_SECONDS:
+    if hit and time.time() - hit[0] < cache_seconds():
         return hit[1]
     out = await _upcoming(start, days)
     _upcoming_cache[key] = (time.time(), out)
@@ -144,10 +155,10 @@ def clear_caches() -> None:
 
 
 async def episodes_for(item: dict) -> list[dict]:
-    """Liste ordonnée des épisodes disponibles d'une série (gardée 10 minutes)."""
+    """Liste ordonnée des épisodes disponibles d'une série (gardée selon Réglages → Le rythme)."""
     if item.get("source") == "sonarr" and Config.sonarr():
         hit = _episodes_cache.get(item["sonarr_id"])
-        if hit and time.time() - hit[0] < CACHE_SECONDS:
+        if hit and time.time() - hit[0] < cache_seconds():
             return hit[1]
         try:
             async with httpx.AsyncClient() as client:

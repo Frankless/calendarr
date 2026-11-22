@@ -213,6 +213,8 @@ Settings lets you change:
 - the kids' ages and the maximum recommended age, 8 for family evenings and 6 for kids' slots (at 7, a
   "PG" movie is allowed, a "PG-13" one isn't);
 - the number of episodes per evening, how long before a movie can be rewatched, and the reminder;
+- how often Calendarr reads Radarr, Sonarr and Jellyfin again (every hour by default, from 10 minutes to
+  once a day), with a "Relire maintenant" (Read now) button;
 - liked or avoided genres (tap a genre once to like it, twice to avoid it);
 - the typical week: for each day, slots with a time, a maximum length, an audience (kids, family,
   parents), a type (movie, series, documentary, any) and a name.
